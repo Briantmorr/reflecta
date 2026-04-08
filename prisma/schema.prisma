@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model JournalEntry {
+  id        String     @id @default(cuid())
+  title     String?
+  content   String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  questions Question[]
+  insights  Insight[]
+}
+
+// Per-entry reflective questions (V1.5)
+model Question {
+  id        String       @id @default(cuid())
+  text      String
+  entryId   String
+  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@index([entryId])
+}
+
+// Cross-entry insights — populated by cron in V2
+model Insight {
+  id        String       @id @default(cuid())
+  content   String
+  themes    String[]
+  entryId   String?
+  entry     JournalEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  createdAt DateTime     @default(now())
+
+  @@index([entryId])
+}
