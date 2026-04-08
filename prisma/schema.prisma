@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -32,7 +32,7 @@ model Question {
 model Insight {
   id        String       @id @default(cuid())
   content   String
-  themes    String[]
+  themes    String?   // JSON-encoded string array; V2 will populate this
   entryId   String?
   entry     JournalEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
   createdAt DateTime     @default(now())
