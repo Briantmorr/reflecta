@@ -7,35 +7,69 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model JournalEntry {
-  id        String     @id @default(cuid())
+// ─── Chat sessions ────────────────────────────────────────────────
+model Conversation {
+  id        String    @id @default(cuid())
   title     String?
-  content   String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  questions Question[]
-  insights  Insight[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
 }
 
-// Per-entry reflective questions (V1.5)
-model Question {
-  id        String       @id @default(cuid())
-  text      String
-  entryId   String
-  entry     JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  createdAt DateTime     @default(now())
+model Message {
+  id             String        @id @default(cuid())
+  conversationId String
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String        // 'user' | 'assistant' | 'system'
+  content        String
+  createdAt      DateTime      @default(now())
 
-  @@index([entryId])
+  // Which graph nodes this message contributed to / referenced
+  nodeRefs       MessageNode[]
+
+  @@index([conversationId])
 }
 
-// Cross-entry insights — populated by cron in V2
-model Insight {
-  id        String       @id @default(cuid())
-  content   String
-  themes    String?   // JSON-encoded string array; V2 will populate this
-  entryId   String?
-  entry     JournalEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
-  createdAt DateTime     @default(now())
+// ─── Psyche graph ────────────────────────────────────────────────
+// A Node IS a tag. Future messages are auto-tagged against existing nodes.
+model GraphNode {
+  id          String        @id @default(cuid())
+  label       String        @unique  // normalized label acts as the tag key
+  type        String        // 'user' | 'person' | 'role' | 'domain' | 'emotion'
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  @@index([entryId])
+  // Every time a node is referenced its weight increases
+  mentionCount Int          @default(1)
+
+  fromEdges   GraphEdge[]   @relation("FromNode")
+  toEdges     GraphEdge[]   @relation("ToNode")
+  messageRefs MessageNode[]
+}
+
+model GraphEdge {
+  id           String    @id @default(cuid())
+  fromId       String
+  toId         String
+  relationship String
+  createdAt    DateTime  @default(now())
+
+  fromNode     GraphNode @relation("FromNode", fields: [fromId], references: [id], onDelete: Cascade)
+  toNode       GraphNode @relation("ToNode",   fields: [toId],   references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId, relationship])
+  @@index([fromId])
+  @@index([toId])
+}
+
+// Join table: a message is "tagged" with the nodes it references.
+// Lets us later build a "timeline" for any node and do cross-conversation retrieval.
+model MessageNode {
+  messageId String
+  nodeId    String
+  message   Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  node      GraphNode @relation(fields: [nodeId],    references: [id], onDelete: Cascade)
+
+  @@id([messageId, nodeId])
+  @@index([nodeId])
 }

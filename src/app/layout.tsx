@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'Journal',
-  description: 'A private journal with AI-powered reflection',
+  title: 'Mirror — A Guided Tour of the Psyche',
+  description: 'Reflective conversation with a living map of your inner world',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

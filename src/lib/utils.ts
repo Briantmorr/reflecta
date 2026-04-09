@@ -1,21 +1,5 @@
-/**
- * Strip HTML tags and return first meaningful line as a title preview.
- * Caps at 60 chars with ellipsis.
- */
-export function getEntryTitle(htmlContent: string): string {
-  const text = htmlContent
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const firstLine = text.split(/[.\n]/)[0]?.trim() ?? ''
-  if (!firstLine) return 'Untitled Entry'
-  return firstLine.length > 60 ? firstLine.slice(0, 60) + '…' : firstLine
-}
-
-/**
- * Smart date formatting: "Today · 2:30 PM", "Yesterday · 9:14 AM", or "Apr 8, 2026"
- */
-export function formatEntryDate(dateString: string): string {
+/** Smart date formatting: "Today · 2:30 PM", "Yesterday · 9:14 AM", or "Apr 8, 2026" */
+export function formatDate(dateString: string): string {
   const date = new Date(dateString)
   const now = new Date()
   const today = startOfDay(now)
@@ -24,12 +8,8 @@ export function formatEntryDate(dateString: string): string {
 
   const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-  if (entryDay.getTime() === today.getTime()) {
-    return `Today · ${timeStr}`
-  }
-  if (entryDay.getTime() === yesterday.getTime()) {
-    return `Yesterday · ${timeStr}`
-  }
+  if (entryDay.getTime() === today.getTime()) return `Today · ${timeStr}`
+  if (entryDay.getTime() === yesterday.getTime()) return `Yesterday · ${timeStr}`
   return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -37,9 +17,27 @@ function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
-/** Count words in a plain text or HTML string */
-export function wordCount(text: string): number {
-  const plain = text.replace(/<[^>]*>/g, ' ').trim()
-  if (!plain) return 0
-  return plain.split(/\s+/).filter(Boolean).length
+/** Derive a title from the first user message in a conversation */
+export function deriveConversationTitle(firstMessage: string): string {
+  const trimmed = firstMessage.trim()
+  if (!trimmed) return 'Untitled Conversation'
+  const firstSentence = trimmed.split(/[.!?\n]/)[0]?.trim() ?? trimmed
+  return firstSentence.length > 50 ? firstSentence.slice(0, 50) + '…' : firstSentence
+}
+
+/** Normalize an entity label so "Dad" / "dad" / "father" all collapse to one node */
+export function normalizeLabel(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+/** Title-case a normalized label for display */
+export function displayLabel(label: string): string {
+  return label
+    .split(' ')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }

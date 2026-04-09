@@ -1,192 +1,163 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import Navigator from '@/components/Navigator'
-import Editor from '@/components/Editor'
-import Preview from '@/components/Preview'
-import { JournalEntry, EntryListItem, EntryQuestion } from '@/types'
+import { useState, useEffect, useCallback } from 'react'
+import ConversationList from '@/components/ConversationList'
+import ChatInterface from '@/components/ChatInterface'
+import PsycheGraph from '@/components/PsycheGraph'
+import { Conversation, ConversationListItem, Graph, Message } from '@/types'
 
 export default function Home() {
-  const [entries, setEntries] = useState<EntryListItem[]>([])
-  const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null)
-  const [isNewEntry, setIsNewEntry] = useState(false)
-  const [savedEntry, setSavedEntry] = useState<JournalEntry | null>(null)
-  const [questions, setQuestions] = useState<EntryQuestion[]>([])
-  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
-  const [questionsError, setQuestionsError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [conversations, setConversations] = useState<ConversationListItem[]>([])
+  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
+  const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] })
+  const [onboarding, setOnboarding] = useState<string | null>(null)
+  const [isSending, setIsSending] = useState(false)
+  const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([])
 
-  // Track the last saved entry id to avoid re-generating questions unnecessarily
-  const lastQuestionsEntryId = useRef<string | null>(null)
-
-  const fetchEntries = useCallback(async () => {
-    try {
-      const res = await fetch('/api/entries')
-      if (!res.ok) throw new Error('Failed to fetch entries')
-      const data: EntryListItem[] = await res.json()
-      setEntries(data)
-    } catch (err) {
-      console.error('Failed to fetch entries:', err)
-    }
+  // ─── Fetchers ──────────────────────────────────────────
+  const fetchConversations = useCallback(async () => {
+    const res = await fetch('/api/conversations')
+    if (res.ok) setConversations(await res.json())
   }, [])
 
+  const fetchGraph = useCallback(async () => {
+    const res = await fetch('/api/graph')
+    if (res.ok) setGraph(await res.json())
+  }, [])
+
+  const fetchConversation = useCallback(async (id: string) => {
+    const res = await fetch(`/api/conversations/${id}`)
+    if (!res.ok) return null
+    return (await res.json()) as Conversation
+  }, [])
+
+  // ─── Initial load ──────────────────────────────────────
   useEffect(() => {
-    fetchEntries()
-  }, [fetchEntries])
+    fetchConversations()
+    fetchGraph()
+  }, [fetchConversations, fetchGraph])
 
-  const handleNewEntry = useCallback(() => {
-    setActiveEntry(null)
-    setIsNewEntry(true)
-    setHasUnsavedChanges(false)
-  }, [])
-
-  const handleSelectEntry = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/entries/${id}`)
-      if (!res.ok) throw new Error('Failed to fetch entry')
-      const entry: JournalEntry = await res.json()
-
-      setActiveEntry(entry)
-      setIsNewEntry(false)
-      setHasUnsavedChanges(false)
-      setSavedEntry(entry)
-
-      // Load existing questions for this entry
-      if (entry.questions && entry.questions.length > 0) {
-        setQuestions(entry.questions)
-        setQuestionsError(null)
-        lastQuestionsEntryId.current = entry.id
-      } else {
-        setQuestions([])
-        setQuestionsError(null)
-      }
-    } catch (err) {
-      console.error('Failed to load entry:', err)
-    }
-  }, [])
-
-  const handleDeleteEntry = useCallback(
+  // ─── Handlers ──────────────────────────────────────────
+  const handleSelect = useCallback(
     async (id: string) => {
-      try {
-        await fetch(`/api/entries/${id}`, { method: 'DELETE' })
-        await fetchEntries()
+      const convo = await fetchConversation(id)
+      if (!convo) return
+      setActiveConversation(convo)
 
-        if (activeEntry?.id === id) {
-          setActiveEntry(null)
-          setIsNewEntry(false)
-          setHasUnsavedChanges(false)
+      // If empty, fetch an onboarding prompt
+      if ((convo.messages?.length ?? 0) === 0) {
+        const res = await fetch(`/api/conversations/${id}/messages`)
+        if (res.ok) {
+          const { onboarding } = await res.json()
+          setOnboarding(onboarding)
         }
-        if (savedEntry?.id === id) {
-          setSavedEntry(null)
-          setQuestions([])
-          setQuestionsError(null)
-        }
-      } catch (err) {
-        console.error('Failed to delete entry:', err)
+      } else {
+        setOnboarding(null)
       }
+
+      setHighlightedNodeIds([])
     },
-    [activeEntry?.id, savedEntry?.id, fetchEntries]
+    [fetchConversation]
   )
 
-  const handleSave = useCallback(
-    async (content: string, entryId?: string) => {
-      if (isSaving) return
-      setIsSaving(true)
+  const handleCreate = useCallback(async () => {
+    const res = await fetch('/api/conversations', { method: 'POST' })
+    if (!res.ok) return
+    const created = await res.json()
+    await fetchConversations()
+    await handleSelect(created.id)
+  }, [fetchConversations, handleSelect])
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+      if (activeConversation?.id === id) {
+        setActiveConversation(null)
+        setOnboarding(null)
+      }
+      await fetchConversations()
+      await fetchGraph()
+    },
+    [activeConversation?.id, fetchConversations, fetchGraph]
+  )
+
+  const handleSendMessage = useCallback(
+    async (content: string) => {
+      if (!activeConversation || isSending) return
+      setIsSending(true)
+      setOnboarding(null)
+
+      // Optimistically add the user message
+      const optimisticUserMsg: Message = {
+        id: `temp-${Date.now()}`,
+        conversationId: activeConversation.id,
+        role: 'user',
+        content,
+        createdAt: new Date().toISOString(),
+      }
+      setActiveConversation((prev) =>
+        prev ? { ...prev, messages: [...(prev.messages ?? []), optimisticUserMsg] } : prev
+      )
 
       try {
-        let saved: JournalEntry
-
-        if (entryId) {
-          const res = await fetch(`/api/entries/${entryId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
-          })
-          if (!res.ok) throw new Error('Failed to update entry')
-          saved = await res.json()
-        } else {
-          const res = await fetch('/api/entries', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
-          })
-          if (!res.ok) throw new Error('Failed to create entry')
-          saved = await res.json()
-        }
-
-        setActiveEntry(saved)
-        setSavedEntry(saved)
-        setIsNewEntry(false)
-        setHasUnsavedChanges(false)
-        await fetchEntries()
-
-        // Generate questions (non-blocking)
-        setIsGeneratingQuestions(true)
-        setQuestionsError(null)
-        setQuestions([])
-        lastQuestionsEntryId.current = saved.id
-
-        fetch('/api/insights', {
+        const res = await fetch(`/api/conversations/${activeConversation.id}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entryId: saved.id }),
+          body: JSON.stringify({ content }),
         })
-          .then(async (res) => {
-            const data = await res.json()
-            if (!res.ok) {
-              setQuestionsError(data.error ?? 'Could not generate questions.')
-            } else {
-              setQuestions(data.questions ?? [])
-            }
-          })
-          .catch(() => {
-            setQuestionsError('Could not reach the AI. Check your API key.')
-          })
-          .finally(() => {
-            setIsGeneratingQuestions(false)
-          })
+        if (!res.ok) throw new Error('Failed to send message')
+        const data = await res.json()
+
+        // Replace optimistic message with the real pair
+        setActiveConversation((prev) => {
+          if (!prev) return prev
+          const msgs = (prev.messages ?? []).filter((m) => m.id !== optimisticUserMsg.id)
+          return {
+            ...prev,
+            messages: [...msgs, data.userMessage, data.assistantMessage],
+          }
+        })
+
+        setGraph(data.graph)
+        setHighlightedNodeIds(data.touchedNodeIds ?? [])
+        await fetchConversations()
       } catch (err) {
-        console.error('Failed to save:', err)
+        console.error(err)
+        // Roll back optimistic
+        setActiveConversation((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: (prev.messages ?? []).filter((m) => m.id !== optimisticUserMsg.id),
+              }
+            : prev
+        )
       } finally {
-        setIsSaving(false)
+        setIsSending(false)
       }
     },
-    [isSaving, fetchEntries]
+    [activeConversation, isSending, fetchConversations]
   )
-
-  const handleContentChange = useCallback(() => {
-    setHasUnsavedChanges(true)
-  }, [])
 
   return (
     <main
       className="flex h-screen overflow-hidden"
-      style={{ background: 'var(--journal-bg)' }}
+      style={{ background: 'var(--mirror-bg)' }}
     >
-      <Navigator
-        entries={entries}
-        activeEntryId={activeEntry?.id ?? null}
-        onSelectEntry={handleSelectEntry}
-        onNewEntry={handleNewEntry}
-        onDeleteEntry={handleDeleteEntry}
+      <ConversationList
+        conversations={conversations}
+        activeConversationId={activeConversation?.id ?? null}
+        onSelect={handleSelect}
+        onCreate={handleCreate}
+        onDelete={handleDelete}
       />
-
-      <Editor
-        entry={activeEntry}
-        isNewEntry={isNewEntry}
-        isSaving={isSaving}
-        hasUnsavedChanges={hasUnsavedChanges}
-        onSave={handleSave}
-        onContentChange={handleContentChange}
+      <ChatInterface
+        conversation={activeConversation}
+        onboardingPrompt={onboarding}
+        onSendMessage={handleSendMessage}
+        isSending={isSending}
       />
-
-      <Preview
-        entry={savedEntry}
-        questions={questions}
-        isGeneratingQuestions={isGeneratingQuestions}
-        questionsError={questionsError}
-      />
+      <PsycheGraph graph={graph} highlightedNodeIds={highlightedNodeIds} />
     </main>
   )
 }
