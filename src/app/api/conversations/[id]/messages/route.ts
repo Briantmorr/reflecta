@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { mockLLMCall, onboardingPrompt } from '@/lib/mockLLM'
 import { applyLLMResult, getFullGraph } from '@/lib/graph'
 import { deriveConversationTitle } from '@/lib/utils'
+import { AUTH_ENABLED, currentUserId } from '@/lib/auth'
 
 type Params = { params: { id: string } }
 
@@ -16,6 +17,11 @@ type Params = { params: { id: string } }
  */
 export async function POST(request: Request, { params }: Params) {
   try {
+    const userId = await currentUserId()
+    if (AUTH_ENABLED && !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { content } = await request.json()
     if (!content || typeof content !== 'string') {
       return NextResponse.json({ error: 'content is required' }, { status: 400 })
@@ -26,6 +32,9 @@ export async function POST(request: Request, { params }: Params) {
       include: { _count: { select: { messages: true } } },
     })
     if (!conversation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (AUTH_ENABLED && conversation.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // 1. Persist user message
     const userMessage = await prisma.message.create({
@@ -81,6 +90,21 @@ export async function POST(request: Request, { params }: Params) {
  * (Used by the client when it opens a brand-new conversation.)
  */
 export async function GET(_: Request, { params }: Params) {
+  const userId = await currentUserId()
+  if (AUTH_ENABLED && !userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (AUTH_ENABLED) {
+    const owned = await prisma.conversation.findUnique({
+      where: { id: params.id },
+      select: { userId: true },
+    })
+    if (!owned) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (owned.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
+
   const count = await prisma.message.count({ where: { conversationId: params.id } })
   if (count === 0) {
     return NextResponse.json({ onboarding: onboardingPrompt() })

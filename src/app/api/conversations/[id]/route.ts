@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { AUTH_ENABLED, currentUserId } from '@/lib/auth'
 
 type Params = { params: { id: string } }
 
 export async function GET(_: Request, { params }: Params) {
   try {
+    const userId = await currentUserId()
+    if (AUTH_ENABLED && !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const conversation = await prisma.conversation.findUnique({
       where: { id: params.id },
       include: {
@@ -15,6 +21,9 @@ export async function GET(_: Request, { params }: Params) {
       },
     })
     if (!conversation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (AUTH_ENABLED && conversation.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     return NextResponse.json(conversation)
   } catch (err) {
     console.error('[GET /api/conversations/[id]]', err)
@@ -24,6 +33,22 @@ export async function GET(_: Request, { params }: Params) {
 
 export async function DELETE(_: Request, { params }: Params) {
   try {
+    const userId = await currentUserId()
+    if (AUTH_ENABLED && !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (AUTH_ENABLED) {
+      const owned = await prisma.conversation.findUnique({
+        where: { id: params.id },
+        select: { userId: true },
+      })
+      if (!owned) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      if (owned.userId !== userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     await prisma.conversation.delete({ where: { id: params.id } })
     return new NextResponse(null, { status: 204 })
   } catch (err) {

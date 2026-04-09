@@ -69,21 +69,85 @@ These responses populate the initial graph structure.
 
 ## Setup Instructions
 
-> (To be completed)
+```bash
+# 1. Install dependencies
+npm install
 
-- Install dependencies
-- Configure environment variables
-- Connect database
-- Run local dev server
+# 2. Copy env template and fill in values (see below for what each is for)
+cp .env.example .env.local
+cp .env.example .env   # Prisma CLI reads .env, Next reads .env.local
+
+# 3. Create the SQLite schema and seed the demo data
+npm run db:push
+npm run db:seed
+
+# 4. Run the dev server
+npm run dev
+```
+
+By default `AUTH_ENABLED=false` and no external services are required —
+the app runs locally with a mock LLM, a SQLite DB, and no sign-in gate.
+
+### Optional: turn on Google sign-in
+
+1. Create OAuth credentials in
+   [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+    - Authorized JS origin: `http://localhost:3000`
+    - Authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+2. Generate an `AUTH_SECRET`: `openssl rand -base64 32`
+3. In `.env.local` set:
+    - `AUTH_ENABLED="true"`
+    - `AUTH_SECRET="…"`
+    - `GOOGLE_CLIENT_ID="…"`
+    - `GOOGLE_CLIENT_SECRET="…"`
+4. Restart `npm run dev`. You should be bounced to `/signin` on first load.
+
+When the flag is off, the app behaves exactly as it does today — no
+redirect, no session lookups, conversations belong to nobody.
 
 ---
 
-## Deployment
+## Deployment (Vercel)
 
-Mirror is deployed automatically via Vercel.
+Mirror deploys to Vercel from the `develop` branch. Every push to
+`develop` produces a new deploy viewable by anyone with the preview URL.
 
-- Any merge to `main` triggers a production deployment
-- Preview deployments are created for pull requests
+> ⚠️ SQLite on Vercel is read-only and ephemeral. We work around it by
+> seeding `prisma/dev.db` at build time, bundling it with the function
+> via `outputFileTracingIncludes`, and copying it to `/tmp/dev.db` on
+> cold start (see `src/lib/db.ts`). Writes survive within a single
+> warm function instance but disappear between cold starts. This is
+> fine for UI previews — not for real users. Migrate to Postgres
+> (Neon) before onboarding anyone who needs their data to stick.
+
+### One-time setup
+
+1. Push this repo to GitHub (see [Creating the GitHub repo](#creating-the-github-repo) below).
+2. Go to [vercel.com/new](https://vercel.com/new) and import the repo.
+3. In the import screen:
+    - **Framework preset:** Next.js (auto-detected).
+    - **Build command:** leave as default — Vercel will auto-detect the
+      `vercel-build` script in `package.json` which runs the seed.
+    - **Environment variables:**
+        - `DATABASE_URL` = `file:./dev.db`   _(build-time only; runtime overrides this to `/tmp/dev.db`)_
+        - `AUTH_ENABLED` = `false`           _(leave off until we migrate to Postgres)_
+4. After the first deploy lands, open **Project → Settings → Git** and
+   change the **Production Branch** from `main` (or whatever the initial
+   default was) to `develop`.
+
+### Day-to-day
+
+- Merge anything you want your partner to see into `develop`.
+- Vercel auto-builds and auto-deploys.
+- Grab the deploy URL from the Vercel dashboard and share it.
+
+### Creating the GitHub repo
+
+```bash
+gh repo create mirror --private --source=. --remote=origin --push
+git checkout -b develop
+git push -u origin develop
+```
 
 ---
 

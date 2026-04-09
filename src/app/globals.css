@@ -2,19 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ─── Theme tokens ────────────────────────────────────────
+ * Dark is the default. Light is opted into via data-theme="light"
+ * on the <html> element (set by the no-FOUC script in layout.tsx
+ * and toggled at runtime by SettingsProvider).
+ * ──────────────────────────────────────────────────────── */
+
+:root,
+:root[data-theme='dark'] {
+  /* Surfaces */
   --mirror-bg: #0f0d0b;
   --mirror-nav: #141210;
   --mirror-pane: #181512;
   --mirror-elevated: #201d19;
   --mirror-border: #2a2520;
+  --mirror-border-strong: #3a332c;
+
+  /* Text */
   --mirror-text: #e8e3da;
   --mirror-secondary: #9c9189;
   --mirror-muted: #5a5450;
+
+  /* Accent */
   --mirror-accent: #c9a96e;
   --mirror-accent-hover: #d4b87a;
   --mirror-accent-subtle: rgba(201, 169, 110, 0.08);
   --mirror-accent-dim: rgba(201, 169, 110, 0.18);
+  --mirror-accent-contrast: #0f0d0b;
+
+  /* Graph node palettes (swap with theme for legibility) */
+  --node-user-bg: linear-gradient(135deg, #c9a96e 0%, #a8864f 100%);
+  --node-user-fg: #0f0d0b;
+  --node-user-border: #d4b87a;
+
+  --node-domain-bg: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+  --node-domain-fg: #e8e3da;
+  --node-domain-border: #4a5568;
+
+  --node-person-bg: linear-gradient(135deg, #2b4060 0%, #1a2838 100%);
+  --node-person-fg: #cbd5e0;
+  --node-person-border: #3e5473;
+
+  --node-role-bg: linear-gradient(135deg, #4a3b5f 0%, #2d2438 100%);
+  --node-role-fg: #e9d5ff;
+  --node-role-border: #6b4d85;
+
+  --node-emotion-bg: linear-gradient(135deg, #5a3b3b 0%, #3a2424 100%);
+  --node-emotion-fg: #fecaca;
+  --node-emotion-border: #7f4f4f;
+
+  --node-label-bg: rgba(15, 13, 11, 0.85);
+  --node-edge-stroke: #3d3632;
+  --graph-dot-color: #2a2520;
+  --node-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  /* Modal / overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme='light'] {
+  /* Surfaces — warm cream / parchment */
+  --mirror-bg: #faf7f0;
+  --mirror-nav: #f3eee2;
+  --mirror-pane: #fdfbf5;
+  --mirror-elevated: #ede7d6;
+  --mirror-border: #e2d9c3;
+  --mirror-border-strong: #cdc2a4;
+
+  /* Text */
+  --mirror-text: #2a2520;
+  --mirror-secondary: #6b6159;
+  --mirror-muted: #9c9189;
+
+  /* Accent — slightly darker gold for contrast against cream */
+  --mirror-accent: #a8864f;
+  --mirror-accent-hover: #8f7040;
+  --mirror-accent-subtle: rgba(168, 134, 79, 0.08);
+  --mirror-accent-dim: rgba(168, 134, 79, 0.18);
+  --mirror-accent-contrast: #faf7f0;
+
+  /* Graph palette — softer, higher contrast against cream */
+  --node-user-bg: linear-gradient(135deg, #b8934b 0%, #8f7040 100%);
+  --node-user-fg: #faf7f0;
+  --node-user-border: #a8864f;
+
+  --node-domain-bg: linear-gradient(135deg, #475569 0%, #334155 100%);
+  --node-domain-fg: #f8fafc;
+  --node-domain-border: #64748b;
+
+  --node-person-bg: linear-gradient(135deg, #4a6585 0%, #334a65 100%);
+  --node-person-fg: #f0f4f9;
+  --node-person-border: #5e7a99;
+
+  --node-role-bg: linear-gradient(135deg, #6b5489 0%, #4a3b5f 100%);
+  --node-role-fg: #f5ebff;
+  --node-role-border: #836aa3;
+
+  --node-emotion-bg: linear-gradient(135deg, #8b5a5a 0%, #5a3b3b 100%);
+  --node-emotion-fg: #fff1f1;
+  --node-emotion-border: #a06b6b;
+
+  --node-label-bg: rgba(253, 251, 245, 0.92);
+  --node-edge-stroke: #cdc2a4;
+  --graph-dot-color: #e2d9c3;
+  --node-shadow: 0 1px 4px rgba(90, 75, 40, 0.15);
+
+  --overlay-bg: rgba(42, 37, 32, 0.35);
 }
 
 * {
@@ -31,14 +124,18 @@ body {
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 kbd {
   background: var(--mirror-elevated);
-  padding: 1px 4px;
+  padding: 1px 5px;
   border-radius: 3px;
   border: 1px solid var(--mirror-border);
   font-size: 0.85em;
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  color: var(--mirror-secondary);
 }
 
 /* ─── Scrollbars ───────────────────────────────────────── */
@@ -54,10 +151,10 @@ kbd {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--mirror-muted);
+  background: var(--mirror-border-strong);
 }
 
-/* ─── React Flow dark theme overrides ──────────────────── */
+/* ─── React Flow theme overrides ───────────────────────── */
 .react-flow__attribution {
   display: none !important;
 }
@@ -94,4 +191,25 @@ kbd {
 }
 .react-flow__node:active {
   cursor: grabbing;
+}
+
+/* ─── Utilities ────────────────────────────────────────── */
+.mirror-focus-ring:focus-visible {
+  outline: 2px solid var(--mirror-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.mirror-fade-in {
+  animation: mirror-fade-in 160ms ease-out;
+}
+@keyframes mirror-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

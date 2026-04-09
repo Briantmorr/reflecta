@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { AUTH_ENABLED, currentUserId } from '@/lib/auth'
 
 export async function GET() {
   try {
+    const userId = await currentUserId()
+    if (AUTH_ENABLED && !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const conversations = await prisma.conversation.findMany({
+      where: AUTH_ENABLED ? { userId } : undefined,
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -30,8 +37,13 @@ export async function GET() {
 
 export async function POST() {
   try {
+    const userId = await currentUserId()
+    if (AUTH_ENABLED && !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const conversation = await prisma.conversation.create({
-      data: { title: null },
+      data: { title: null, userId },
     })
     return NextResponse.json(conversation, { status: 201 })
   } catch (err) {
