@@ -18,9 +18,13 @@ function resolveDatabaseUrl(): string | undefined {
   if (isBuildTime()) return undefined // keep build + seed on prisma/dev.db
 
   const runtimeDb = '/tmp/dev.db'
-  const seedDb = path.join(process.cwd(), 'prisma', 'dev.db')
+  const candidateSeedDbs = [
+    path.join(process.cwd(), 'prisma', 'dev.db'),
+    path.join(process.cwd(), 'dev.db'),
+  ]
+  const seedDb = candidateSeedDbs.find((candidate) => fs.existsSync(candidate))
 
-  if (!fs.existsSync(runtimeDb) && fs.existsSync(seedDb)) {
+  if (!fs.existsSync(runtimeDb) && seedDb) {
     fs.copyFileSync(seedDb, runtimeDb)
   }
   return `file:${runtimeDb}`
