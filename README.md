@@ -67,13 +67,16 @@ By default:
 
 ## Prompt Editing
 
-Prompts live in root-level JSON files:
+Prompts live in `prompts/` as JSON files so you can iterate on tone and behavior without touching app code:
 
-- [`prompts/conversation-turn.json`](/Users/brianmorris/dev/projects/llm_journal/prompts/conversation-turn.json)
-- [`prompts/conversation-tagger.json`](/Users/brianmorris/dev/projects/llm_journal/prompts/conversation-tagger.json)
-- [`prompts/onboarding.json`](/Users/brianmorris/dev/projects/llm_journal/prompts/onboarding.json)
+| File | Controls |
+|------|----------|
+| `mirror_persona.json` | Mirror's identity and voice — prepended to every LLM call |
+| `conversation-turn.json` | Per-message reflective replies and entity extraction |
+| `conversation-tagger.json` | Post-conversation tagging (the "Update map" step) |
+| `onboarding.json` | First message when a new conversation starts |
 
-Pattern:
+Each file has one field:
 
 ```json
 {
@@ -81,7 +84,44 @@ Pattern:
 }
 ```
 
-In development, prompt edits are loaded fresh from disk. In production, they are cached after first read. If a file is missing or malformed, the code falls back to a built-in default prompt in [`src/lib/llm.ts`](/Users/brianmorris/dev/projects/llm_journal/src/lib/llm.ts).
+### How prompt loading works
+
+- In **development**, prompts are read fresh from disk on every request — just edit and refresh.
+- In **production**, prompts are cached in memory after first read.
+- If a file is missing or malformed, `src/lib/llm.ts` falls back to a hardcoded default.
+
+### Tuning tips
+
+**Persona** (`mirror_persona.json`):
+- This is Mirror's soul. It gets prepended to every LLM call (turns, tagging, onboarding).
+- Controls disposition (curious, warm, grounded), voice (short sentences, concrete), and boundaries (not a therapist, not a coach).
+- Also defines Mirror's relationship to the map — how it thinks about what's worth keeping.
+- Edit this to change who Mirror fundamentally is. Task-specific instructions stay in the other files.
+
+**Turn prompt** (`conversation-turn.json`):
+- This prompt runs on every user message. It controls both the conversational reply and the entity/relationship extraction returned as structured JSON.
+- The response format section controls length and structure. Currently tuned for 2-3 sentences.
+- The extraction rules control what ends up in the graph. Adjust normalization rules here (e.g. "father" → "Dad").
+- If responses feel generic, tighten the "stay close to the user's actual words" rule or add examples.
+- If extraction is noisy, raise the bar in the "only extract entities that are explicitly present" rule.
+
+**Tagger prompt** (`conversation-tagger.json`):
+- This runs once when the user presses "Update map". It receives the full conversation and existing graph nodes.
+- The 1-6 tag range and hierarchy rules (e.g. `Work -> Coworkers -> Jen`) are the main levers.
+- If the map grows too fast, tighten the "avoid creating new nodes" and "reuse existing nodes" rules.
+- If tags are too vague, add more examples of good vs bad tagging.
+
+**Onboarding prompt** (`onboarding.json`):
+- This generates the first assistant message in a new conversation.
+- Keep it short (2 paragraphs max) with one concrete opening question.
+- When a user clicks a dormant domain, the onboarding is themed to that domain (handled in app code, not in this prompt).
+
+### Testing prompt changes
+
+1. Edit the JSON file in `prompts/`
+2. With the dev server running, send a message or start a new conversation — changes apply immediately
+3. Check the response tone, length, and extracted entities
+4. If using mock LLM (no `OPENAI_API_KEY`), prompt changes have no effect — the mock returns canned responses
 
 ## Environment
 

@@ -1,26 +1,15 @@
 # Prompt Files
 
-Mirror keeps editable LLM prompts in this folder so prompt work can happen without touching app code.
+Editable LLM prompts for Mirror. Edit these to tune tone, behavior, and extraction rules without touching app code.
 
-Files:
+| File | Purpose |
+|------|---------|
+| `conversation-turn.json` | Per-message reflective replies and entity extraction |
+| `conversation-tagger.json` | Post-conversation tagging ("Update map") |
+| `onboarding.json` | First message in a new conversation |
 
-- `conversation-turn.json`
-- `conversation-tagger.json`
-- `onboarding.json`
+Each file has one field: `{ "prompt": "..." }`
 
-Pattern:
+In dev, edits reload on every request. In production, prompts are cached after first read. Missing or malformed files fall back to defaults in `src/lib/llm.ts`.
 
-```json
-{
-  "prompt": "Your prompt text here"
-}
-```
-
-Notes:
-
-- The app reads these files from `src/lib/llm.ts`.
-- In development, prompt edits are loaded fresh on each request.
-- In production, prompts are cached in memory after first read.
-- If a prompt file is missing or invalid JSON, the app falls back to a built-in default prompt.
-
-Use this folder for prompt iteration. Keep app logic in `src/lib/llm.ts` and prompt copy here.
+See the main [README](../README.md#prompt-editing) for tuning tips.

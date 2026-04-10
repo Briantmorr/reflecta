@@ -23,12 +23,12 @@ Light mode is the default.
 
 ## Core Domains
 
-- `Self` → `Who am I?`
-- `Health` → `How am I doing?`
-- `Work` → `What do I do?`
-- `Relationships` → `Who am I connected to?`
-- `Hobbies` → `What do I enjoy?`
-- `Lifestyle` → `How do I live?`
+- `Self` -> `Who am I?`
+- `Health` -> `How am I doing?`
+- `Work` -> `What do I do?`
+- `Relationships` -> `Who am I connected to?`
+- `Hobbies` -> `What do I enjoy?`
+- `Lifestyle` -> `How do I live?`
 
 Rules:
 
@@ -51,12 +51,8 @@ Rules:
 
 Mirror separates two LLM jobs:
 
-1. Turn response
-- GPT-5.4 responds to the active conversation using recent history plus relevant graph context
-
-2. Conversation tagging
-- after a conversation, the user presses `Update map`
-- GPT-5.4 returns a small set of durable tags for that conversation
+1. **Turn response**: GPT responds to the active conversation using recent history plus relevant graph context
+2. **Conversation tagging**: after a conversation, the user presses `Update map` and GPT returns a small set of durable tags
 
 Tagging rules:
 
@@ -96,101 +92,17 @@ Collapsed history behavior:
 - previous conversations are hidden entirely
 - only the minimal rail remains visible
 
-## Prompt Workflow
-
-Prompts are developer-editable files in `prompts/`:
-
-- `prompts/conversation-turn.json`
-- `prompts/conversation-tagger.json`
-- `prompts/onboarding.json`
-
-Pattern:
-
-```json
-{
-  "prompt": "..."
-}
-```
-
-Rules:
-
-- prompt copy belongs in `prompts/`
-- prompt loading and fallback logic belongs in `src/lib/llm.ts`
-- dev should load prompt edits fresh from disk
-- production may cache prompts in memory
-
 ## LLM
 
-Provider:
-
-- OpenAI
-
-Model:
-
-- `gpt-5.4`
-
-API:
-
-- Responses API
-
-Env var:
-
-- `OPENAI_API_KEY`
+- Provider: OpenAI
+- Model: `gpt-5.4`
+- API: Responses API
 
 Turn responses should:
 
 - sound perceptive, calm, and concise
 - distill patterns instead of offering generic reassurance
 - connect current reflection to prior context when supported
-- explore the user’s life with them, not lecture them
+- explore the user's life with them, not lecture them
 - ask at most one grounded follow-up question
 - avoid research/statistics unless explicitly asked
-
-## Persistence
-
-Current persistence is SQLite.
-
-Main tables:
-
-- `Conversation`
-- `Message`
-- `GraphNode`
-- `GraphEdge`
-- `MessageNode`
-- `ConversationNode`
-
-Visible graph state is derived from conversation tags in `ConversationNode`.
-
-## API
-
-Routes:
-
-- `GET /api/conversations`
-- `POST /api/conversations`
-- `GET /api/conversations/[id]`
-- `DELETE /api/conversations/[id]`
-- `GET /api/conversations/[id]/messages`
-- `POST /api/conversations/[id]/messages`
-- `POST /api/conversations/[id]/tags`
-- `DELETE /api/conversations/[id]/tags`
-- `GET /api/graph`
-
-Behavior:
-
-- sending a message does not directly mutate visible graph tags
-- updating tags does update the visible graph
-- removing a tag updates both the conversation and the graph
-
-## Deployment
-
-Current Vercel behavior:
-
-- build creates `prisma/dev.db` from schema only
-- runtime copies that bundled DB to `/tmp/dev.db`
-- deploys start empty unless local/demo seed data is intentionally reintroduced
-- runtime data remains ephemeral across cold starts
-
-Repo-local deploy verification:
-
-- `.codex/skills/reflecta-deploy-check`
-- `npm run smoke:deploy`
