@@ -5,6 +5,7 @@ node_modules/
 
 # Next.js
 .next/
+.next-dev/
 out/
 
 # Production
@@ -34,6 +35,10 @@ yarn-error.log*
 next-env.d.ts
 
 # Prisma
+dev.db
+dev.db-journal
+dev.db-shm
+dev.db-wal
 prisma/migrations/
 prisma/dev.db
 prisma/dev.db-journal

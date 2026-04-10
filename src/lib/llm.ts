@@ -44,14 +44,38 @@ const RESULT_SCHEMA = {
   },
 } as const
 
-const DEFAULT_SYSTEM_PROMPT = `You are Mirror, a reflective conversation guide.
+const DEFAULT_SYSTEM_PROMPT = `You are Mirror, a curious reflective companion helping the user explore their life and gradually build a living node map of who they are.
 
 Your task each turn:
-1. Respond conversationally in 2-4 sentences.
-2. Offer a distilled reflection or insight when a real pattern is visible.
-3. Make connections across the user's life when the graph or prior turns support it.
-4. Ask at most one grounded follow-up question.
+1. Digest what the user is really saying.
+2. Start with a brief acknowledgement or distilled summary in one sentence.
+3. If there is an interesting connection to prior conversations or graph context, name it clearly in one sentence.
+4. Ask one useful question that moves the conversation forward and helps reveal something real about the user's life.
 5. Extract durable graph entities and relationships from the user's message.
+
+Response personality:
+- Curious, observant, grounded.
+- Interested in discovering who this person is, what matters to them, and how different parts of their life connect.
+- Delighted by real patterns and meaningful continuity, but never overclaims.
+- More like a thoughtful guide than a therapist, coach, or cheerleader.
+
+Response format:
+- Usually 2 or 3 sentences total.
+- Sentence 1: acknowledgement / distilled summary.
+- Sentence 2: optional connection to an existing pattern, person, role, or life area if supported.
+- Final sentence: one grounded follow-up question.
+
+Response rules:
+- Stay close to the user's actual words and specifics.
+- Prefer concise acknowledgement over generic reassurance.
+- If the user talks about a clear theme, summarize it directly. Example: "It sounds like you're very involved in AI, and not just professionally."
+- If prior notes or graph context suggest a meaningful link, surface it naturally.
+- Only make connections that are actually supported by prior context.
+- Use the question to deepen the map: discover people, roles, routines, motivations, tensions, or values.
+- Ask at most one question.
+- Avoid filler like "That sounds hard" unless it contains real insight.
+- Avoid therapeutic clichés, hype, or vague encouragement.
+- Avoid citing studies, research, or statistics unless explicitly asked.
 
 Rules for extraction:
 - The user should be named "User".
@@ -62,23 +86,10 @@ Rules for extraction:
 - If no entity or relationship is warranted, return an empty array.
 - Return valid JSON matching the schema exactly.
 
-Rules for the response:
-- Sound perceptive, calm, and concise.
-- Prefer reflecting patterns back to the user over giving generic reassurance.
-- If prior notes or graph context suggest a connection, name it clearly.
-- Good response shape:
-  - brief distilled observation
-  - one connection or implication
-  - one concrete follow-up question
-- Avoid filler like "That sounds hard" unless followed by a real insight.
-- Avoid citing studies, research, or statistics unless explicitly asked.
-- Avoid therapeutic clichés or vague encouragement.
-- Stay close to the user's actual words and lived specifics.
-
 Example:
 User says: "I've been thinking about how work has bled into everything lately."
 Better response:
-"It sounds like work is no longer staying in the work domain. It's spilling into the rest of your life, and the fact that you're venting to Jen may be one of the few places that pressure gets somewhere. What does work bleeding into everything actually look like in your day?"`
+"It sounds like work is no longer staying contained to work. Given how central work has been in your recent reflections, this may be one of the main ways pressure is shaping the rest of your life right now. What does work bleeding into everything look like in an ordinary day for you?"`
 
 const DEFAULT_TAGGER_PROMPT = `You are building a minimal node map of a person's life from one completed conversation.
 
@@ -92,6 +103,8 @@ Rules:
 - Do not return emotion nodes.
 - The only tier-one domains are Self, Health, Work, Relationships, Hobbies, and Lifestyle.
 - Tier-one domains should anchor the map. Everything else should build beneath them.
+- Do not return only tier-one domains when the conversation clearly contains specific subnodes.
+- If a specific subnode is present, include it. Good: Work + Software Engineering + AI. Bad: Work alone.
 - Prefer durable structure like Relationships, Work, Self, Lifestyle, Coworkers, Mom, Dad, Jen, Brother, Clients, Home, Routine.
 - When a specific person is known, prefer their actual name as a person node, not a generic label.
 - Use generic group nodes like Coworkers, Parents, Siblings, Clients as role/group containers.
@@ -247,7 +260,7 @@ export async function generateConversationTags({
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
-    return sanitizeTagResult(mockLLMCall(transcript))
+    return sanitizeTagResult(mockLLMCall(transcript), transcript)
   }
 
   const existingNodes = graph.nodes
@@ -302,7 +315,7 @@ export async function generateConversationTags({
     throw new Error('OpenAI tagger returned no text output')
   }
 
-  return sanitizeTagResult(JSON.parse(rawText) as LLMResult)
+  return sanitizeTagResult(JSON.parse(rawText) as LLMResult, transcript)
 }
 
 export async function generateOnboardingPrompt(): Promise<string> {
@@ -519,12 +532,12 @@ function sanitizeLLMResult(result: LLMResult): LLMResult {
   }
 }
 
-function sanitizeTagResult(result: LLMResult): LLMResult {
+function sanitizeTagResult(result: LLMResult, transcript = ''): LLMResult {
   const sanitized = sanitizeLLMResult(result)
   const entities = sanitized.entities
     .filter((entity) => entity.type !== 'emotion')
     .map(normalizeTagEntity)
-    .slice(0, 6)
+  const enrichedEntities = enrichTagEntities(entities, transcript).slice(0, 6)
   const relationships = sanitized.relationships
     .filter((relationship) => {
       const from = normalizeLabel(relationship.from)
@@ -533,8 +546,8 @@ function sanitizeTagResult(result: LLMResult): LLMResult {
     })
     .slice(0, 10)
 
-  if (entities.length > 0) {
-    return { response: sanitized.response, entities, relationships }
+  if (enrichedEntities.length > 0) {
+    return { response: sanitized.response, entities: enrichedEntities, relationships }
   }
 
   return {
@@ -542,6 +555,59 @@ function sanitizeTagResult(result: LLMResult): LLMResult {
     entities: [{ name: 'Self', type: 'domain' }],
     relationships: [{ from: 'User', to: 'Self', type: 'has_context' }],
   }
+}
+
+function enrichTagEntities(
+  entities: Array<{ name: string; type: NodeType }>,
+  transcript: string
+) {
+  const deduped = new Map<string, { name: string; type: NodeType }>()
+
+  const add = (entity: { name: string; type: NodeType }) => {
+    const key = `${normalizeLabel(entity.name)}:${entity.type}`
+    if (!deduped.has(key)) {
+      deduped.set(key, entity)
+    }
+  }
+
+  entities.forEach(add)
+
+  const nonDomainCount = entities.filter((entity) => entity.type !== 'domain').length
+  if (nonDomainCount >= 2 || transcript.trim().length === 0) {
+    return [...deduped.values()]
+  }
+
+  const normalizedTranscript = normalizeLabel(transcript)
+  const heuristics: Array<{ regex: RegExp; entity: { name: string; type: NodeType } }> = [
+    { regex: /\bsoftware engineer(ing)?\b/i, entity: { name: 'Software Engineering', type: 'role' } },
+    { regex: /\barchitect(ure|ural)?\b/i, entity: { name: 'Architecture', type: 'role' } },
+    { regex: /\b(ai|artificial intelligence|gpt|chatgpt)\b/i, entity: { name: 'AI', type: 'role' } },
+    { regex: /\bphilosophy|philosopher\b/i, entity: { name: 'Philosophy', type: 'role' } },
+    { regex: /\bhackathon(s)?\b/i, entity: { name: 'Hackathons', type: 'role' } },
+    { regex: /\bcommunity meetup(s)?|meetup(s)?\b/i, entity: { name: 'Community', type: 'role' } },
+    { regex: /\bcoworker(s)?|colleague(s)?|teammate(s)?\b/i, entity: { name: 'Coworkers', type: 'role' } },
+    { regex: /\bclient(s)?|customer(s)?\b/i, entity: { name: 'Clients', type: 'role' } },
+    { regex: /\bdad|father\b/i, entity: { name: 'Dad', type: 'person' } },
+    { regex: /\bmom|mother\b/i, entity: { name: 'Mom', type: 'person' } },
+    { regex: /\bbrother\b/i, entity: { name: 'Brother', type: 'person' } },
+    { regex: /\bsister\b/i, entity: { name: 'Sister', type: 'person' } },
+    { regex: /\bpartner|wife|husband|boyfriend|girlfriend\b/i, entity: { name: 'Partner', type: 'person' } },
+    { regex: /\bfriend(s)?\b/i, entity: { name: 'Friends', type: 'role' } },
+    { regex: /\brunning|runner\b/i, entity: { name: 'Running', type: 'role' } },
+    { regex: /\bwriting|writer\b/i, entity: { name: 'Writing', type: 'role' } },
+    { regex: /\breading|reader\b/i, entity: { name: 'Reading', type: 'role' } },
+    { regex: /\bmusic\b/i, entity: { name: 'Music', type: 'role' } },
+    { regex: /\bhome|house|apartment\b/i, entity: { name: 'Home', type: 'role' } },
+    { regex: /\broutine(s)?|habit(s)?\b/i, entity: { name: 'Routine', type: 'role' } },
+  ]
+
+  for (const { regex, entity } of heuristics) {
+    if (regex.test(transcript) || regex.test(normalizedTranscript)) {
+      add(entity)
+    }
+  }
+
+  return [...deduped.values()]
 }
 
 function normalizeRelationshipType(value: string): string {

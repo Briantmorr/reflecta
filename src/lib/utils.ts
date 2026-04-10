@@ -36,8 +36,15 @@ export function normalizeLabel(label: string): string {
 
 /** Title-case a normalized label for display */
 export function displayLabel(label: string): string {
+  const acronyms = new Map([
+    ['ai', 'AI'],
+    ['gpt', 'GPT'],
+    ['ui', 'UI'],
+    ['ux', 'UX'],
+  ])
+
   return label
     .split(' ')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .map((w) => acronyms.get(w) ?? (w.charAt(0).toUpperCase() + w.slice(1)))
     .join(' ')
 }

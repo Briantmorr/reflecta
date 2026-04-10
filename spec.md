@@ -1,45 +1,27 @@
 # Mirror Spec
 
-## Product
+## Product Shape
 
-Mirror is a three-pane reflective app:
+Mirror is a graph-first reflective app.
 
-- Left: collapsible conversation history
-- Center: active conversation
-- Right: collapsible psyche graph
+Layout:
 
-The experience should feel clean, modern, and minimal. Light mode is the default.
+- left: collapsible conversation history
+- center: primary map surface
+- right: collapsible conversation panel
 
-## Core Model
+Light mode is the default.
 
-Mirror separates two LLM jobs:
+## Main Experience
 
-1. Turn response
-GPT-5.4 replies in the conversation using recent turns plus relevant graph context.
+- the map is the first thing the user sees
+- the six core domains are always present around `You`
+- dormant core domains are greyed out but still hoverable and clickable
+- clicking a dormant domain starts a themed conversation
+- conversation tags are applied after the user presses `Update map`
+- the graph re-renders from conversation tags, not from per-message extraction
 
-2. Conversation mapping
-After a conversation, the user presses `Update map`. GPT-5.4 tags the full conversation with a small set of durable life nodes.
-
-The visible graph is driven by conversation-level tags, not by per-message extraction.
-
-## Graph Rules
-
-- The graph should feel earned, not noisy.
-- Emotions are not shown as graph nodes.
-- Edge labels are hidden.
-- `You` only connects to first-ring container nodes.
-- Tier-one domains only render if they have visible children.
-
-Tier-one domains:
-
-- `Self`
-- `Health`
-- `Work`
-- `Relationships`
-- `Hobbies`
-- `Lifestyle`
-
-Core questions:
+## Core Domains
 
 - `Self` → `Who am I?`
 - `Health` → `How am I doing?`
@@ -48,35 +30,53 @@ Core questions:
 - `Hobbies` → `What do I enjoy?`
 - `Lifestyle` → `How do I live?`
 
-Everything else builds beneath those domains.
+Rules:
 
-Preferred structures:
+- these six make up the first ring
+- `You` only connects to first-ring container nodes
+- emotions do not appear as graph nodes
+- edge labels are hidden
+- node maps should feel earned, not noisy
 
-- `Relationships -> Dad`
-- `Relationships -> Mom`
-- `Work -> Coworkers -> Jen`
+## Graph Behavior
 
-Avoid node bloat. Reuse existing nodes when possible. Prefer concrete names for people and generic container nodes for groups.
+- tier-one nodes remain visible even before they have child structure
+- dormant tier-one nodes stay visually muted until they gain children
+- node hover should only react on connected links, not neighboring nodes
+- selected nodes can still highlight related structure
+- the first ring should sit in a snapped honeycomb-like layout
+- graph chrome should stay minimal and readable
 
-## Conversation Tagging
+## Conversation Mapping
 
-Each conversation must end up with one or more durable tags.
+Mirror separates two LLM jobs:
 
-Tags:
+1. Turn response
+- GPT-5.4 responds to the active conversation using recent history plus relevant graph context
 
-- are stored per conversation
-- are applied by the LLM when the user presses `Update map`
-- appear at the top of the active conversation
-- can be manually removed by the user
-- update the graph immediately when changed
+2. Conversation tagging
+- after a conversation, the user presses `Update map`
+- GPT-5.4 returns a small set of durable tags for that conversation
 
-The tagger should keep the map lean:
+Tagging rules:
 
-- prefer existing nodes
-- avoid generic filler like `life`, `stress`, `thoughts`
-- avoid creating unnecessary new nodes
-- prefer names like `Jen` over vague person labels like `Coworker`
-- if a named person belongs in a group, include the group structure too
+- every conversation should end up with 1 to 6 durable tags
+- prefer existing nodes when possible
+- avoid filler like `life`, `thoughts`, `feelings`, `stress`
+- prefer concrete people like `Jen`
+- prefer container nodes for groups like `Coworkers`, `Parents`, `Clients`
+- favor structures like `Work -> Coworkers -> Jen`
+- keep the map lean and resist node bloat
+
+## Conversation UI
+
+- the conversation panel is the right-side support surface, not the primary entry point
+- the conversation panel is collapsible
+- the map itself is not collapsible
+- the empty state should include a real `Start conversation` button
+- user and Mirror messages should be visually distinct while staying in palette
+- conversation tags appear at the top of the active conversation
+- tags can be manually removed and should update the graph immediately
 
 ## Node View
 
@@ -85,50 +85,66 @@ Selecting a graph node enters node view.
 In node view:
 
 - the history pane expands
-- conversation history is filtered to notes tagged with that node
-- the selected node can be changed by clicking another node
-- the history pane shows a dedicated node-view indicator card
-- the main history header stays `Mirror history`
+- the history list filters to conversations tagged with that node
+- the history header remains `Mirror history`
+- a dedicated node-view indicator card appears above the filtered list
+- clicking another node switches node view
+- clicking empty graph space exits node view
 
 Collapsed history behavior:
 
 - previous conversations are hidden entirely
-- only the minimal rail controls remain visible
+- only the minimal rail remains visible
 
-## UI
+## Prompt Workflow
 
-Current UI requirements:
+Prompts are developer-editable files in `prompts/`:
 
-- no-FOUC theme boot in layout
-- settings modal with light/dark toggle
-- conversation history collapsed by default
-- graph and history panes are collapsible
-- empty center state includes a real `Start conversation` button
-- active conversation tags should feel present but not dominant
-- node-view indicator should be more visible, using a translucent celadon treatment
-- six core domains should remain visible in the graph, with inactive ones shown in a greyed dormant state
+- `prompts/conversation-turn.json`
+- `prompts/conversation-tagger.json`
+- `prompts/onboarding.json`
+
+Pattern:
+
+```json
+{
+  "prompt": "..."
+}
+```
+
+Rules:
+
+- prompt copy belongs in `prompts/`
+- prompt loading and fallback logic belongs in `src/lib/llm.ts`
+- dev should load prompt edits fresh from disk
+- production may cache prompts in memory
 
 ## LLM
 
 Provider:
+
 - OpenAI
 
 Model:
+
 - `gpt-5.4`
 
 API:
+
 - Responses API
 
 Env var:
+
 - `OPENAI_API_KEY`
 
 Turn responses should:
 
-- reflect and distill patterns
-- connect current thoughts to prior context when supported
-- avoid generic reassurance
-- avoid citing studies unless explicitly asked
+- sound perceptive, calm, and concise
+- distill patterns instead of offering generic reassurance
+- connect current reflection to prior context when supported
+- explore the user’s life with them, not lecture them
 - ask at most one grounded follow-up question
+- avoid research/statistics unless explicitly asked
 
 ## Persistence
 
@@ -143,11 +159,11 @@ Main tables:
 - `MessageNode`
 - `ConversationNode`
 
-`ConversationNode` is the source of truth for visible conversation tags.
+Visible graph state is derived from conversation tags in `ConversationNode`.
 
 ## API
 
-Current routes:
+Routes:
 
 - `GET /api/conversations`
 - `POST /api/conversations`
@@ -161,25 +177,20 @@ Current routes:
 
 Behavior:
 
-- sending a message does not directly update the visible graph
+- sending a message does not directly mutate visible graph tags
 - updating tags does update the visible graph
 - removing a tag updates both the conversation and the graph
 
-## Deployment Notes
+## Deployment
 
-- Vercel runtime uses a writable SQLite copy in `/tmp`
-- build-time and runtime must use the same seeded DB source
-- deployed smoke checks should verify:
-  - home loads
-  - start button renders
-  - graph API responds
-  - conversations API does not return `500`
-  - create conversation succeeds
+Current Vercel behavior:
 
-Repo-local testing skill:
+- build creates `prisma/dev.db` from schema only
+- runtime copies that bundled DB to `/tmp/dev.db`
+- deploys start empty unless local/demo seed data is intentionally reintroduced
+- runtime data remains ephemeral across cold starts
+
+Repo-local deploy verification:
 
 - `.codex/skills/reflecta-deploy-check`
-
-Smoke command:
-
 - `npm run smoke:deploy`

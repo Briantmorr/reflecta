@@ -290,6 +290,19 @@ function inferTypeForTarget(label: string): NodeType {
     'parents',
     'siblings',
     'clients',
+    'friends',
+    'software_engineering',
+    'architecture',
+    'ai',
+    'philosophy',
+    'hackathons',
+    'community',
+    'running',
+    'writing',
+    'reading',
+    'music',
+    'home',
+    'routine',
   ])
   if (roles.has(normalized)) return 'role'
 
@@ -390,6 +403,7 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'self_esteem',
     'growth',
     'mindset',
+    'philosophy',
   ])
   if (selfLabels.has(normalized)) return 'Self'
 
@@ -437,6 +451,9 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'club',
     'volunteer',
     'class',
+    'community',
+    'home',
+    'routine',
   ])
   if (lifestyleLabels.has(normalized)) return 'Lifestyle'
 
@@ -448,8 +465,20 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'team',
     'clients',
     'client',
+    'software_engineering',
+    'architecture',
+    'ai',
+    'hackathons',
   ])
   if (workLabels.has(normalized)) return 'Work'
+
+  const hobbyLabels = new Set([
+    'running',
+    'writing',
+    'reading',
+    'music',
+  ])
+  if (hobbyLabels.has(normalized)) return 'Hobbies'
 
   if (type === 'role') {
     if (normalized.includes('cowork')) return 'Work'

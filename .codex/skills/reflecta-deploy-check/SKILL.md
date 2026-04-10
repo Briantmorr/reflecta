@@ -24,7 +24,7 @@ Use this skill after shipping or changing frontend behavior that should be verif
 - Home loads without a server error.
 - Empty state shows `Select or start a conversation`.
 - Empty state shows the `Start conversation` button.
-- Graph pane loads and exposes `Psyche graph`.
+- Graph pane loads and exposes `Map`.
 - `GET /api/graph` returns JSON.
 - `GET /api/conversations` returns a non-500 response.
 - `POST /api/conversations` returns `201` when the app should allow public conversation creation.
