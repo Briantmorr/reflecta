@@ -239,6 +239,7 @@ export default function Home() {
       <ChatInterface
         conversation={activeConversation}
         onboardingPrompt={onboarding}
+        onCreateConversation={handleCreate}
         onSendMessage={handleSendMessage}
         isSending={isSending}
         onUpdateTags={handleUpdateTags}

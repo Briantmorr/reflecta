@@ -8,6 +8,7 @@ import { useSettings } from '@/lib/settings'
 interface ChatInterfaceProps {
   conversation: Conversation | null
   onboardingPrompt: string | null
+  onCreateConversation: () => Promise<void>
   onSendMessage: (content: string) => Promise<void>
   onUpdateTags: () => Promise<void>
   onRemoveTag: (nodeId: string) => Promise<void>
@@ -18,6 +19,7 @@ interface ChatInterfaceProps {
 export default function ChatInterface({
   conversation,
   onboardingPrompt,
+  onCreateConversation,
   onSendMessage,
   onUpdateTags,
   onRemoveTag,
@@ -98,6 +100,19 @@ export default function ChatInterface({
               Mirror is a reflective companion. As you talk, a living map of your inner
               world takes shape on the right.
             </p>
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={onCreateConversation}
+              className="mirror-focus-ring rounded-full px-4 py-2 text-sm font-medium transition-colors"
+              style={{
+                background: 'var(--mirror-accent)',
+                color: 'var(--mirror-accent-contrast)',
+              }}
+            >
+              Start conversation
+            </button>
           </div>
         </div>
       </div>
