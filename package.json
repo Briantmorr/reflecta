@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
-    "vercel-build": "DATABASE_URL=file:./prisma/dev.db prisma generate && DATABASE_URL=file:./prisma/dev.db prisma db push --accept-data-loss && DATABASE_URL=file:./prisma/dev.db tsx scripts/seed.ts && next build",
+    "vercel-build": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('prisma/dev.db', { force: true })\" && DATABASE_URL=file:./prisma/dev.db prisma generate && DATABASE_URL=file:./prisma/dev.db prisma db push --force-reset --accept-data-loss && next build",
     "start": "next start",
     "lint": "next lint",
     "smoke:deploy": "bash .codex/skills/reflecta-deploy-check/scripts/smoke.sh https://reflecta-delta.vercel.app",

@@ -450,14 +450,14 @@ export default function PsycheGraph({
         </div>
 
         {layout === 'primary' && (
-          <div className="px-5 pb-0 pt-4">
+          <div className="px-4 pb-0 pt-3">
             <div
-              className="rounded-[28px] border px-5 py-4"
+              className="rounded-[30px] border px-6 py-5"
               style={{
                 background:
-                  'linear-gradient(135deg, color-mix(in srgb, var(--mirror-surface) 86%, transparent), color-mix(in srgb, var(--mirror-accent-subtle) 240%, var(--mirror-nav)) 52%, color-mix(in srgb, var(--mirror-surface) 88%, transparent))',
+                  'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 12%, var(--mirror-pane)) 0%, color-mix(in srgb, var(--node-person-border) 10%, var(--mirror-pane)) 38%, color-mix(in srgb, var(--node-role-border) 10%, var(--mirror-pane)) 100%)',
                 borderColor: 'var(--mirror-border)',
-                boxShadow: '0 14px 34px rgba(53, 42, 27, 0.05)',
+                boxShadow: '0 16px 40px rgba(53, 42, 27, 0.06)',
               }}
             >
               <div
@@ -529,7 +529,7 @@ export default function PsycheGraph({
         )}
 
         <div
-          className={`relative flex-1 overflow-hidden ${layout === 'primary' ? 'm-5 rounded-[36px]' : 'm-3 rounded-[28px]'}`}
+          className={`relative flex-1 overflow-hidden ${layout === 'primary' ? 'm-3 rounded-[40px]' : 'm-3 rounded-[28px]'}`}
           style={{
             background:
               'radial-gradient(circle at top, var(--mirror-surface), transparent 58%), var(--mirror-pane)',
@@ -565,7 +565,7 @@ export default function PsycheGraph({
               nodesConnectable={false}
               elementsSelectable={false}
               fitView
-              fitViewOptions={{ padding: layout === 'primary' ? 0.24 : 0.3, maxZoom: 1.2 }}
+              fitViewOptions={{ padding: layout === 'primary' ? 0.18 : 0.3, maxZoom: 1.2 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.3}
               maxZoom={2}
@@ -592,7 +592,7 @@ export default function PsycheGraph({
         </div>
 
         <div
-          className={`flex flex-shrink-0 items-center justify-around ${layout === 'primary' ? 'px-6 pb-5 pt-0' : 'px-4 pb-4 pt-1'}`}
+          className={`flex flex-shrink-0 items-center justify-around ${layout === 'primary' ? 'px-5 pb-4 pt-0' : 'px-4 pb-4 pt-1'}`}
         >
           <LegendItem type="user" label="You" />
           <LegendItem type="domain" label="Theme" />

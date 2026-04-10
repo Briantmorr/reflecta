@@ -120,10 +120,10 @@ export default function ChatInterface({
     }
 
     return (
-      <aside
+        <aside
         className="relative flex h-screen flex-col"
         style={{
-          width: layout === 'side' ? '420px' : 'auto',
+          width: layout === 'side' ? '380px' : 'auto',
           flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
           background: 'var(--mirror-pane)',
           borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
@@ -222,7 +222,7 @@ export default function ChatInterface({
     <aside
       className="flex h-screen min-w-0 flex-col overflow-hidden"
       style={{
-        width: layout === 'side' ? '420px' : 'auto',
+        width: layout === 'side' ? '380px' : 'auto',
         flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
         background: 'var(--mirror-pane)',
         borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
