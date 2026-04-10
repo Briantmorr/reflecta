@@ -32,18 +32,28 @@ The visible graph is driven by conversation-level tags, not by per-message extra
 
 Tier-one domains:
 
-- `Family`
-- `Relationships`
-- `Work`
+- `Self`
 - `Health`
+- `Work`
+- `Relationships`
 - `Hobbies`
+- `Lifestyle`
+
+Core questions:
+
+- `Self` → `Who am I?`
+- `Health` → `How am I doing?`
+- `Work` → `What do I do?`
+- `Relationships` → `Who am I connected to?`
+- `Hobbies` → `What do I enjoy?`
+- `Lifestyle` → `How do I live?`
 
 Everything else builds beneath those domains.
 
 Preferred structures:
 
-- `Family -> Dad`
-- `Family -> Mom`
+- `Relationships -> Dad`
+- `Relationships -> Mom`
 - `Work -> Coworkers -> Jen`
 
 Avoid node bloat. Reuse existing nodes when possible. Prefer concrete names for people and generic container nodes for groups.
@@ -96,6 +106,7 @@ Current UI requirements:
 - empty center state includes a real `Start conversation` button
 - active conversation tags should feel present but not dominant
 - node-view indicator should be more visible, using a translucent celadon treatment
+- six core domains should remain visible in the graph, with inactive ones shown in a greyed dormant state
 
 ## LLM
 

@@ -42,6 +42,8 @@ export interface GraphNode {
   type: NodeType
   mentionCount: number
   createdAt: string
+  dormant?: boolean
+  question?: string
 }
 
 export interface GraphEdge {

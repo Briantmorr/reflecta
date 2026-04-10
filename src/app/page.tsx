@@ -8,6 +8,10 @@ import SettingsModal from '@/components/SettingsModal'
 import { useSettings } from '@/lib/settings'
 import { Conversation, ConversationListItem, Graph, Message, NodeView } from '@/types'
 
+function buildThemedOnboarding(theme: string) {
+  return `Let’s start with ${theme.toLowerCase()}.\n\nWhat feels most present or unresolved for you there right now?`
+}
+
 export default function Home() {
   const { openLeft } = useSettings()
   const [conversations, setConversations] = useState<ConversationListItem[]>([])
@@ -72,6 +76,23 @@ export default function Home() {
     await fetchConversations()
     await handleSelect(created.id)
   }, [fetchConversations, handleSelect])
+
+  const handleCreateThemedConversation = useCallback(
+    async (theme: string, nodeId?: string) => {
+      const res = await fetch('/api/conversations', { method: 'POST' })
+      if (!res.ok) return
+      const created = await res.json()
+      const convo = await fetchConversation(created.id)
+      if (!convo) return
+
+      setActiveConversation(convo)
+      setNodeView(null)
+      setOnboarding(buildThemedOnboarding(theme))
+      setHighlightedNodeIds(nodeId ? [nodeId] : [])
+      await fetchConversations()
+    },
+    [fetchConversation, fetchConversations]
+  )
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -209,11 +230,16 @@ export default function Home() {
       const node = graph.nodes.find((candidate) => candidate.id === nodeId)
       if (!node || node.type === 'user') return
 
+      if (node.type === 'domain' && node.dormant) {
+        void handleCreateThemedConversation(node.label, node.id)
+        return
+      }
+
       setNodeView({ nodeId: node.id, label: node.label })
       setHighlightedNodeIds([node.id])
       openLeft()
     },
-    [activeConversation?.tags, graph.nodes, openLeft]
+    [activeConversation?.tags, graph.nodes, handleCreateThemedConversation, openLeft]
   )
 
   const visibleConversations = nodeView
@@ -236,6 +262,13 @@ export default function Home() {
         nodeView={nodeView}
         onClearNodeView={() => handleSelectNode(null)}
       />
+      <PsycheGraph
+        graph={graph}
+        highlightedNodeIds={highlightedNodeIds}
+        selectedNodeId={nodeView?.nodeId ?? null}
+        onSelectNode={handleSelectNode}
+        layout="primary"
+      />
       <ChatInterface
         conversation={activeConversation}
         onboardingPrompt={onboarding}
@@ -245,12 +278,7 @@ export default function Home() {
         onUpdateTags={handleUpdateTags}
         onRemoveTag={handleRemoveTag}
         isUpdatingTags={isUpdatingTags}
-      />
-      <PsycheGraph
-        graph={graph}
-        highlightedNodeIds={highlightedNodeIds}
-        selectedNodeId={nodeView?.nodeId ?? null}
-        onSelectNode={handleSelectNode}
+        layout="side"
       />
       <SettingsModal />
     </main>

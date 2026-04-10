@@ -29,6 +29,12 @@
   --mirror-accent-subtle: rgba(168, 134, 79, 0.08);
   --mirror-accent-dim: rgba(168, 134, 79, 0.18);
   --mirror-accent-contrast: #faf7f0;
+  --mirror-user-message-bg: rgba(168, 134, 79, 0.14);
+  --mirror-user-message-border: rgba(168, 134, 79, 0.28);
+  --mirror-user-message-label: #8f7040;
+  --mirror-mirror-message-bg: rgba(163, 188, 177, 0.16);
+  --mirror-mirror-message-border: rgba(118, 145, 132, 0.24);
+  --mirror-mirror-message-label: #5f7e71;
 
   /* Graph palette — softer, higher contrast against cream */
   --node-user-bg: linear-gradient(135deg, #b8934b 0%, #8f7040 100%);
@@ -54,7 +60,11 @@
   --node-label-bg: rgba(253, 251, 245, 0.92);
   --node-edge-stroke: #cdc2a4;
   --graph-dot-color: #e2d9c3;
-  --node-shadow: 0 1px 4px rgba(90, 75, 40, 0.15);
+  --node-shadow: 0 10px 24px rgba(90, 75, 40, 0.08);
+  --node-dormant-bg: linear-gradient(135deg, #d7d4cb 0%, #c7c1b2 100%);
+  --node-dormant-fg: #7a746a;
+  --node-dormant-border: #d2c9b6;
+  --node-dormant-label-bg: rgba(247, 241, 228, 0.78);
 
   --overlay-bg: rgba(42, 37, 32, 0.35);
 }
@@ -80,6 +90,12 @@
   --mirror-accent-subtle: rgba(201, 169, 110, 0.08);
   --mirror-accent-dim: rgba(201, 169, 110, 0.18);
   --mirror-accent-contrast: #0f0d0b;
+  --mirror-user-message-bg: rgba(201, 169, 110, 0.16);
+  --mirror-user-message-border: rgba(201, 169, 110, 0.26);
+  --mirror-user-message-label: #d4b87a;
+  --mirror-mirror-message-bg: rgba(92, 124, 112, 0.2);
+  --mirror-mirror-message-border: rgba(98, 136, 122, 0.26);
+  --mirror-mirror-message-label: #9bb8ab;
 
   --node-user-bg: linear-gradient(135deg, #c9a96e 0%, #a8864f 100%);
   --node-user-fg: #0f0d0b;
@@ -104,7 +120,11 @@
   --node-label-bg: rgba(15, 13, 11, 0.85);
   --node-edge-stroke: #3d3632;
   --graph-dot-color: #2a2520;
-  --node-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --node-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  --node-dormant-bg: linear-gradient(135deg, #26231f 0%, #1f1b18 100%);
+  --node-dormant-fg: #80766c;
+  --node-dormant-border: #383129;
+  --node-dormant-label-bg: rgba(24, 21, 18, 0.78);
 
   --overlay-bg: rgba(0, 0, 0, 0.55);
 }
@@ -184,6 +204,11 @@ kbd {
 
 .react-flow__edge-path {
   stroke-linecap: round;
+  transition: stroke 180ms ease, opacity 180ms ease, stroke-width 180ms ease;
+}
+
+.react-flow__controls {
+  backdrop-filter: blur(14px);
 }
 
 .react-flow__edge-text-wrapper rect {
@@ -200,10 +225,31 @@ kbd {
 }
 
 .react-flow__node {
-  cursor: grab;
+  cursor: pointer;
 }
-.react-flow__node:active {
-  cursor: grabbing;
+
+.react-flow__pane {
+  cursor: default;
+}
+
+.psyche-node-shell {
+  transition:
+    filter 220ms ease,
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.psyche-node-shell:hover {
+  filter: drop-shadow(0 18px 28px rgba(96, 80, 44, 0.12));
+  transform: translateY(-1px);
+}
+
+.psyche-node-shell.is-dormant:hover {
+  filter: drop-shadow(0 14px 22px rgba(120, 116, 106, 0.1));
+}
+
+.react-flow__node:hover .psyche-node-shell:not(.is-dormant) {
+  filter: drop-shadow(0 18px 30px color-mix(in srgb, var(--mirror-accent) 20%, transparent));
 }
 
 /* ─── Utilities ────────────────────────────────────────── */

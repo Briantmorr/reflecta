@@ -344,7 +344,7 @@ function pickFrom<T>(arr: T[]): T {
 }
 
 function inferType(label: string): NodeType {
-  const domainLabels = ['Family', 'Work', 'Relationships', 'Health', 'Hobbies']
+  const domainLabels = ['Self', 'Health', 'Work', 'Relationships', 'Hobbies', 'Lifestyle']
   if (label === 'User') return 'user'
   if (domainLabels.includes(label)) return 'domain'
   return 'person'

@@ -5,7 +5,27 @@ import { displayLabel, normalizeLabel } from './utils'
 type PrismaErrorLike = { code?: string }
 
 const VISIBLE_NODE_TYPES: NodeType[] = ['user', 'person', 'role', 'domain']
-const CORE_TIER_ONE_DOMAINS = ['Family', 'Relationships', 'Work', 'Health', 'Hobbies'] as const
+const CORE_TIER_ONE_DOMAINS = ['Self', 'Health', 'Work', 'Relationships', 'Hobbies', 'Lifestyle'] as const
+const CORE_DOMAIN_QUESTIONS: Record<(typeof CORE_TIER_ONE_DOMAINS)[number], string> = {
+  Self: 'Who am I?',
+  Health: 'How am I doing?',
+  Work: 'What do I do?',
+  Relationships: 'Who am I connected to?',
+  Hobbies: 'What do I enjoy?',
+  Lifestyle: 'How do I live?',
+}
+
+async function ensureCoreDomainNodes(userNodeId: string) {
+  const domainIds = new Map<string, string>()
+
+  for (const label of CORE_TIER_ONE_DOMAINS) {
+    const nodeId = await upsertNode(label, 'domain')
+    domainIds.set(normalizeLabel(label), nodeId)
+    await upsertRelationship(userNodeId, nodeId, 'has_domain')
+  }
+
+  return domainIds
+}
 
 export async function ensureUserNode(): Promise<string> {
   const existing = await prisma.graphNode.findUnique({ where: { label: 'user' } })
@@ -111,6 +131,9 @@ export async function getConversationTags(conversationId: string) {
 
 export async function getFullGraph() {
   try {
+    const userNodeId = await ensureUserNode()
+    await ensureCoreDomainNodes(userNodeId)
+
     const [nodes, edges] = await Promise.all([
       prisma.graphNode.findMany({
         include: {
@@ -151,23 +174,20 @@ export async function getFullGraph() {
       if (node.label === 'user') return true
       if (!VISIBLE_NODE_TYPES.includes(node.type as NodeType)) return false
       if (node.type === 'domain') {
-        return (
-          CORE_TIER_ONE_DOMAINS.map((label) => normalizeLabel(label)).includes(node.label) &&
-          domainNodeIds.has(node.id)
-        )
+        return CORE_TIER_ONE_DOMAINS.map((label) => normalizeLabel(label)).includes(node.label)
       }
       return node._count.conversationRefs > 0
     })
 
     const finalNodeIds = new Set(finalNodes.map((node) => node.id))
-    const userNodeId = finalNodes.find((node) => node.label === 'user')?.id
+    const graphUserNodeId = finalNodes.find((node) => node.label === 'user')?.id
     const finalEdges = visibleEdges.filter((edge) => {
       if (!finalNodeIds.has(edge.fromId) || !finalNodeIds.has(edge.toId)) return false
 
-      if (!userNodeId) return true
-      if (edge.fromId !== userNodeId && edge.toId !== userNodeId) return true
+      if (!graphUserNodeId) return true
+      if (edge.fromId !== graphUserNodeId && edge.toId !== graphUserNodeId) return true
 
-      const otherNodeId = edge.fromId === userNodeId ? edge.toId : edge.fromId
+      const otherNodeId = edge.fromId === graphUserNodeId ? edge.toId : edge.fromId
       const otherNode = finalNodes.find((node) => node.id === otherNodeId)
       if (!otherNode) return false
 
@@ -181,8 +201,17 @@ export async function getFullGraph() {
         label: node.label === 'user' ? 'You' : displayLabel(node.label),
         type: node.type as NodeType,
         mentionCount:
-          node.type === 'user' ? 0 : Math.max(node._count.conversationRefs, 1),
+          node.type === 'user'
+            ? 0
+            : node.type === 'domain' && !domainNodeIds.has(node.id)
+              ? 0
+              : Math.max(node._count.conversationRefs, 1),
         createdAt: node.createdAt.toISOString(),
+        dormant: node.type === 'domain' && !domainNodeIds.has(node.id),
+        question:
+          node.type === 'domain'
+            ? CORE_DOMAIN_QUESTIONS[displayLabel(node.label) as keyof typeof CORE_DOMAIN_QUESTIONS]
+            : undefined,
       })),
       edges: finalEdges.map((edge) => ({
         id: edge.id,
@@ -243,13 +272,12 @@ function inferTypeForTarget(label: string): NodeType {
   if (normalized === 'user') return 'user'
 
   const domains = new Set([
-    'family',
+    'self',
     'work',
     'relationships',
     'health',
     'hobbies',
-    'friends',
-    'community',
+    'lifestyle',
   ])
   if (domains.has(normalized)) return 'domain'
 
@@ -261,7 +289,6 @@ function inferTypeForTarget(label: string): NodeType {
     'boss',
     'parents',
     'siblings',
-    'partner',
     'clients',
   ])
   if (roles.has(normalized)) return 'role'
@@ -346,13 +373,27 @@ async function upsertRelationship(fromId: string, toId: string, relationship: st
 function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ONE_DOMAINS)[number] | null {
   const normalized = normalizeLabel(label)
 
-  if (normalized === 'family') return 'Family'
+  if (normalized === 'self') return 'Self'
   if (normalized === 'relationships') return 'Relationships'
   if (normalized === 'work') return 'Work'
   if (normalized === 'health') return 'Health'
   if (normalized === 'hobbies') return 'Hobbies'
+  if (normalized === 'lifestyle') return 'Lifestyle'
 
-  const familyLabels = new Set([
+  const selfLabels = new Set([
+    'self',
+    'identity',
+    'purpose',
+    'values',
+    'confidence',
+    'selfworth',
+    'self_esteem',
+    'growth',
+    'mindset',
+  ])
+  if (selfLabels.has(normalized)) return 'Self'
+
+  const relationshipLabels = new Set([
     'dad',
     'mom',
     'father',
@@ -363,10 +404,6 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'daughter',
     'parents',
     'siblings',
-  ])
-  if (familyLabels.has(normalized)) return 'Family'
-
-  const relationshipLabels = new Set([
     'partner',
     'wife',
     'husband',
@@ -376,6 +413,32 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'friends',
   ])
   if (relationshipLabels.has(normalized)) return 'Relationships'
+
+  const lifestyleLabels = new Set([
+    'lifestyle',
+    'home',
+    'house',
+    'apartment',
+    'routine',
+    'routines',
+    'habit',
+    'habits',
+    'sleep',
+    'diet',
+    'money',
+    'finances',
+    'schedule',
+    'travel',
+    'community',
+    'neighbor',
+    'neighbors',
+    'church',
+    'group',
+    'club',
+    'volunteer',
+    'class',
+  ])
+  if (lifestyleLabels.has(normalized)) return 'Lifestyle'
 
   const workLabels = new Set([
     'coworkers',
@@ -391,6 +454,8 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
   if (type === 'role') {
     if (normalized.includes('cowork')) return 'Work'
     if (normalized.includes('client')) return 'Work'
+    if (normalized.includes('parent')) return 'Relationships'
+    if (normalized.includes('sibling')) return 'Relationships'
   }
 
   return null

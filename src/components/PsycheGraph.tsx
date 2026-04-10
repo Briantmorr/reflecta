@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useEffect } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -22,18 +22,16 @@ import {
   Briefcase,
   Heart,
   Activity,
-  PanelRightClose,
-  PanelRightOpen,
   type LucideIcon,
 } from 'lucide-react'
 import { Graph, NodeType } from '@/types'
-import { useSettings } from '@/lib/settings'
 
 interface PsycheGraphProps {
   graph: Graph
   highlightedNodeIds?: string[]
   selectedNodeId?: string | null
   onSelectNode?: (nodeId: string | null) => void
+  layout?: 'side' | 'primary'
 }
 
 // ─── Custom node rendering ─────────────────────────────────
@@ -42,6 +40,8 @@ interface PsycheNodeData extends Record<string, unknown> {
   type: NodeType
   mentionCount: number
   highlighted: boolean
+  dormant: boolean
+  question?: string
 }
 
 function PsycheNode({ data }: NodeProps) {
@@ -49,27 +49,36 @@ function PsycheNode({ data }: NodeProps) {
   const config = NODE_STYLES[nodeData.type]
   const Icon = config.icon
   const scale = 1 + Math.min(nodeData.mentionCount * 0.04, 0.24)
+  const isDormant = nodeData.dormant
+  const shellClassName = `psyche-node-shell${isDormant ? ' is-dormant' : ''}`
 
   return (
     <>
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
       <div
-        className="flex flex-col items-center gap-1.5 transition-all"
+        className={`group flex flex-col items-center gap-1.5 transition-all ${shellClassName}`}
         style={{
           transform: `scale(${scale})`,
+          opacity: isDormant ? 0.72 : 1,
           filter: nodeData.highlighted
             ? 'drop-shadow(0 12px 24px var(--mirror-accent-subtle))'
             : 'none',
         }}
       >
         <div
-          className="flex items-center justify-center rounded-full transition-all"
+          className="flex items-center justify-center rounded-full transition-all duration-200 group-hover:-translate-y-0.5"
           style={{
             width: config.size,
             height: config.size,
-            background: config.bg,
-            border: `1.5px solid ${nodeData.highlighted ? 'var(--mirror-accent)' : config.border}`,
-            color: config.fg,
+            background: isDormant ? 'var(--node-dormant-bg)' : config.bg,
+            border: `1.5px solid ${
+              nodeData.highlighted
+                ? 'var(--mirror-accent)'
+                : isDormant
+                  ? 'var(--node-dormant-border)'
+                  : config.border
+            }`,
+            color: isDormant ? 'var(--node-dormant-fg)' : config.fg,
             boxShadow: nodeData.highlighted
               ? '0 0 0 6px var(--mirror-accent-subtle)'
               : 'var(--node-shadow)',
@@ -78,16 +87,33 @@ function PsycheNode({ data }: NodeProps) {
           <Icon size={config.iconSize} strokeWidth={1.9} />
         </div>
         <div
-          className="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-[0.08em]"
+          className="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-[0.08em] transition-all duration-200 group-hover:-translate-y-0.5"
           style={{
-            color: nodeData.highlighted ? 'var(--mirror-accent)' : 'var(--mirror-secondary)',
-            background: 'var(--node-label-bg)',
-            border: '1px solid var(--mirror-border)',
+            color: nodeData.highlighted
+              ? 'var(--mirror-accent)'
+              : isDormant
+                ? 'var(--node-dormant-fg)'
+                : 'var(--mirror-secondary)',
+            background: isDormant ? 'var(--node-dormant-label-bg)' : 'var(--node-label-bg)',
+            border: `1px solid ${isDormant ? 'var(--node-dormant-border)' : 'var(--mirror-border)'}`,
             backdropFilter: 'blur(10px)',
           }}
         >
           {nodeData.label}
         </div>
+        {nodeData.question && (
+          <div
+            className="pointer-events-none rounded-full px-2.5 py-1 text-[10px] italic opacity-0 transition-all duration-200 group-hover:translate-y-0.5 group-hover:opacity-100"
+            style={{
+              color: isDormant ? 'var(--node-dormant-fg)' : 'var(--mirror-secondary)',
+              background: isDormant ? 'var(--node-dormant-label-bg)' : 'var(--node-label-bg)',
+              border: `1px solid ${isDormant ? 'var(--node-dormant-border)' : 'var(--mirror-border)'}`,
+              backdropFilter: 'blur(10px)',
+            }}
+          >
+            {nodeData.question}
+          </div>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </>
@@ -95,6 +121,16 @@ function PsycheNode({ data }: NodeProps) {
 }
 
 const nodeTypes = { psyche: PsycheNode }
+
+const DOMAIN_LAYOUT_ORDER = ['Self', 'Health', 'Work', 'Relationships', 'Hobbies', 'Lifestyle']
+const HEX_DIRECTIONS = [
+  { x: 0, y: -1 },
+  { x: 0.866, y: -0.5 },
+  { x: 0.866, y: 0.5 },
+  { x: 0, y: 1 },
+  { x: -0.866, y: 0.5 },
+  { x: -0.866, y: -0.5 },
+]
 
 // ─── Visual styling per node type ─────────────────────────
 const NODE_STYLES: Record<
@@ -113,16 +149,16 @@ const NODE_STYLES: Record<
     fg: 'var(--node-user-fg)',
     border: 'var(--node-user-border)',
     icon: UserIcon,
-    size: 44,
-    iconSize: 18,
+    size: 56,
+    iconSize: 22,
   },
   domain: {
     bg: 'var(--node-domain-bg)',
     fg: 'var(--node-domain-fg)',
     border: 'var(--node-domain-border)',
     icon: Brain,
-    size: 34,
-    iconSize: 15,
+    size: 42,
+    iconSize: 18,
   },
   person: {
     bg: 'var(--node-person-bg)',
@@ -154,71 +190,128 @@ const NODE_STYLES: Record<
 function computeLayout(graph: Graph) {
   const userNode = graph.nodes.find((n) => n.type === 'user')
   const userNodeId = userNode?.id ?? ''
-
-  // Group other nodes by their "parent domain" (based on edges to domain nodes)
-  const domainNodes = graph.nodes.filter((n) => n.type === 'domain')
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]))
+  const domainNodes = [...graph.nodes.filter((n) => n.type === 'domain')].sort((a, b) => {
+    return DOMAIN_LAYOUT_ORDER.indexOf(a.label) - DOMAIN_LAYOUT_ORDER.indexOf(b.label)
+  })
   const nonDomainNonUser = graph.nodes.filter((n) => n.type !== 'domain' && n.type !== 'user')
 
   const positions = new Map<string, { x: number; y: number }>()
 
-  // User at origin
   positions.set(userNodeId, { x: 0, y: 0 })
 
-  // Place domains in an inner ring
-  const domainRadius = 150
-  domainNodes.forEach((d, i) => {
-    const angle = (i / Math.max(domainNodes.length, 1)) * Math.PI * 2 - Math.PI / 2
-    positions.set(d.id, {
-      x: Math.cos(angle) * domainRadius,
-      y: Math.sin(angle) * domainRadius,
+  const domainRadius = 176
+  if (domainNodes.length === 6) {
+    domainNodes.forEach((domainNode, index) => {
+      const dir = HEX_DIRECTIONS[index] ?? HEX_DIRECTIONS[0]
+      positions.set(domainNode.id, {
+        x: Math.round(dir.x * domainRadius),
+        y: Math.round(dir.y * domainRadius),
+      })
     })
-  })
+  } else {
+    domainNodes.forEach((d, i) => {
+      const angle = (i / Math.max(domainNodes.length, 1)) * Math.PI * 2 - Math.PI / 2
+      positions.set(d.id, {
+        x: Math.cos(angle) * domainRadius,
+        y: Math.sin(angle) * domainRadius,
+      })
+    })
+  }
 
-  // For each non-domain node, find which domain it connects to and cluster around it
-  const domainChildren = new Map<string, string[]>() // domainId → [childNodeId]
-  domainNodes.forEach((d) => domainChildren.set(d.id, []))
-  const orphans: string[] = []
+  const adjacency = new Map<string, Set<string>>()
+  for (const edge of graph.edges) {
+    if (edge.fromId === userNodeId || edge.toId === userNodeId) continue
+    if (!adjacency.has(edge.fromId)) adjacency.set(edge.fromId, new Set())
+    if (!adjacency.has(edge.toId)) adjacency.set(edge.toId, new Set())
+    adjacency.get(edge.fromId)?.add(edge.toId)
+    adjacency.get(edge.toId)?.add(edge.fromId)
+  }
 
-  for (const node of nonDomainNonUser) {
-    const edge = graph.edges.find(
-      (e) =>
-        (e.fromId === node.id && domainNodes.some((d) => d.id === e.toId)) ||
-        (e.toId === node.id && domainNodes.some((d) => d.id === e.fromId))
-    )
-    if (edge) {
-      const domainId = domainNodes.some((d) => d.id === edge.toId) ? edge.toId : edge.fromId
-      domainChildren.get(domainId)?.push(node.id)
-    } else {
-      orphans.push(node.id)
+  const parentByNode = new Map<string, string>()
+  const depthByNode = new Map<string, number>()
+  const visited = new Set<string>([userNodeId, ...domainNodes.map((node) => node.id)])
+  const queue = domainNodes.map((node) => node.id)
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()
+    if (!currentId) continue
+    const currentDepth = depthByNode.get(currentId) ?? 1
+    const neighbors = [...(adjacency.get(currentId) ?? [])].sort((leftId, rightId) => {
+      const left = nodeById.get(leftId)
+      const right = nodeById.get(rightId)
+      const priority = { role: 0, person: 1, domain: 2, user: 3, emotion: 4 }
+      return (priority[left?.type ?? 'person'] ?? 9) - (priority[right?.type ?? 'person'] ?? 9)
+    })
+
+    for (const neighborId of neighbors) {
+      if (visited.has(neighborId)) continue
+      visited.add(neighborId)
+      parentByNode.set(neighborId, currentId)
+      depthByNode.set(neighborId, currentDepth + 1)
+      queue.push(neighborId)
     }
   }
 
-  // Place children around their domain
-  const childRadius = 96
-  domainChildren.forEach((childIds, domainId) => {
-    const parentPos = positions.get(domainId)
-    if (!parentPos || childIds.length === 0) return
-    const parentAngle = Math.atan2(parentPos.y, parentPos.x)
-    const spread = Math.PI / 2.5
-    childIds.forEach((childId, i) => {
-      const localAngle =
-        childIds.length === 1
-          ? parentAngle
-          : parentAngle - spread / 2 + (spread * i) / (childIds.length - 1)
-      positions.set(childId, {
-        x: parentPos.x + Math.cos(localAngle) * childRadius,
-        y: parentPos.y + Math.sin(localAngle) * childRadius,
-      })
-    })
-  })
+  const childrenByParent = new Map<string, string[]>()
+  for (const [childId, parentId] of parentByNode.entries()) {
+    const parentChildren = childrenByParent.get(parentId) ?? []
+    parentChildren.push(childId)
+    childrenByParent.set(parentId, parentChildren)
+  }
 
-  // Orphans: place in outer ring
-  const orphanRadius = 250
-  orphans.forEach((id, i) => {
-    const angle = (i / Math.max(orphans.length, 1)) * Math.PI * 2
+  const getSortedDirections = (parentPos: { x: number; y: number }) => {
+    const magnitude = Math.hypot(parentPos.x, parentPos.y) || 1
+    const outward = { x: parentPos.x / magnitude, y: parentPos.y / magnitude }
+    return [...HEX_DIRECTIONS].sort((left, right) => {
+      const leftDot = left.x * outward.x + left.y * outward.y
+      const rightDot = right.x * outward.x + right.y * outward.y
+      return rightDot - leftDot
+    })
+  }
+
+  const placeChildren = (parentId: string) => {
+    const childIds = childrenByParent.get(parentId) ?? []
+    if (childIds.length === 0) return
+
+    const parentPos = positions.get(parentId)
+    const parentNode = nodeById.get(parentId)
+    if (!parentPos || !parentNode) return
+
+    const directions = getSortedDirections(parentPos)
+    const step = parentNode.type === 'domain' ? 92 : 72
+    const ringGap = parentNode.type === 'domain' ? 50 : 40
+
+    childIds.forEach((childId, index) => {
+      const ring = Math.floor(index / directions.length)
+      const direction = directions[index % directions.length] ?? directions[0]
+      const distance = step + ring * ringGap
+      const tangent = { x: -direction.y, y: direction.x }
+      const tangentOffset = ring > 0 ? ((index % directions.length) - 2.5) * 6 : 0
+
+      positions.set(childId, {
+        x: Math.round(parentPos.x + direction.x * distance + tangent.x * tangentOffset),
+        y: Math.round(parentPos.y + direction.y * distance + tangent.y * tangentOffset),
+      })
+
+      placeChildren(childId)
+    })
+  }
+
+  domainNodes.forEach((domainNode) => placeChildren(domainNode.id))
+
+  const orphanIds = nonDomainNonUser
+    .map((node) => node.id)
+    .filter((nodeId) => !positions.has(nodeId))
+
+  const orphanRadius = 294
+  orphanIds.forEach((id, index) => {
+    const direction = HEX_DIRECTIONS[index % HEX_DIRECTIONS.length] ?? HEX_DIRECTIONS[0]
+    const ring = Math.floor(index / HEX_DIRECTIONS.length)
+    const distance = orphanRadius + ring * 42
     positions.set(id, {
-      x: Math.cos(angle) * orphanRadius,
-      y: Math.sin(angle) * orphanRadius,
+      x: Math.round(direction.x * distance),
+      y: Math.round(direction.y * distance),
     })
   })
 
@@ -231,13 +324,12 @@ export default function PsycheGraph({
   highlightedNodeIds = [],
   selectedNodeId = null,
   onSelectNode,
+  layout = 'side',
 }: PsycheGraphProps) {
-  const { rightCollapsed, toggleRight } = useSettings()
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const initialNodes = useMemo<FlowNode[]>(() => {
     const positions = computeLayout(graph)
-    const highlighted = new Set(
-      selectedNodeId ? [...highlightedNodeIds, selectedNodeId] : highlightedNodeIds
-    )
+    const highlighted = new Set([...highlightedNodeIds, ...(selectedNodeId ? [selectedNodeId] : [])])
 
     return graph.nodes.map((n) => ({
       id: n.id,
@@ -248,27 +340,36 @@ export default function PsycheGraph({
         type: n.type,
         mentionCount: n.mentionCount,
         highlighted: highlighted.has(n.id),
+        dormant: Boolean(n.dormant),
+        question: n.question,
       } satisfies PsycheNodeData,
     }))
-  }, [graph, highlightedNodeIds])
+  }, [graph, highlightedNodeIds, selectedNodeId])
 
   const initialEdges = useMemo<FlowEdge[]>(() => {
     const highlighted = new Set(highlightedNodeIds)
     return graph.edges.map((e) => {
       const isHot = highlighted.has(e.fromId) && highlighted.has(e.toId)
+      const isHovered = hoveredNodeId !== null && (e.fromId === hoveredNodeId || e.toId === hoveredNodeId)
+      const fromNode = graph.nodes.find((node) => node.id === e.fromId)
+      const toNode = graph.nodes.find((node) => node.id === e.toId)
+      const isDormantEdge = Boolean(fromNode?.dormant || toNode?.dormant)
       return {
         id: e.id,
         source: e.fromId,
         target: e.toId,
+        type: 'smoothstep',
+        pathOptions: { borderRadius: 22, offset: 10 },
         style: {
-          stroke: isHot ? 'var(--mirror-accent)' : 'var(--node-edge-stroke)',
-          strokeWidth: isHot ? 1.5 : 0.85,
-          opacity: isHot ? 0.9 : 0.42,
+          stroke:
+            isHot || isHovered ? 'var(--mirror-accent)' : 'var(--node-edge-stroke)',
+          strokeWidth: isHot ? 2 : isHovered ? 1.65 : isDormantEdge ? 0.95 : 1.15,
+          opacity: isHot ? 0.92 : isHovered ? 0.74 : isDormantEdge ? 0.2 : 0.44,
         },
         animated: false,
       }
     })
-  }, [graph, highlightedNodeIds])
+  }, [graph, highlightedNodeIds, hoveredNodeId])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -278,174 +379,228 @@ export default function PsycheGraph({
   useEffect(() => setEdges(initialEdges), [initialEdges, setEdges])
 
   return (
-    <aside
-      className="flex h-screen overflow-hidden transition-[width] duration-200"
+    <section
+      className="flex h-screen overflow-hidden"
       style={{
-        width: rightCollapsed ? '72px' : '420px',
-        flexShrink: 0,
+        width: layout === 'primary' ? 'auto' : '420px',
+        flex: layout === 'primary' ? '1 1 auto' : '0 0 auto',
+        minWidth: 0,
         background: 'var(--mirror-pane)',
-        borderLeft: '1px solid var(--mirror-border)',
+        borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
+        borderRight: layout === 'primary' ? '1px solid var(--mirror-border)' : 'none',
       }}
     >
       <div className="flex h-full w-full flex-col">
         <div
-          className={`flex flex-shrink-0 px-4 py-4 ${rightCollapsed ? 'flex-col items-center gap-2' : 'items-center justify-between'}`}
+          className="flex flex-shrink-0 items-center justify-between px-4 py-4"
           style={{
             borderBottom: '1px solid var(--mirror-border)',
-            background: 'var(--mirror-nav)',
+            background:
+              'linear-gradient(135deg, color-mix(in srgb, var(--mirror-nav) 84%, var(--mirror-pane)), color-mix(in srgb, var(--mirror-accent-subtle) 280%, var(--mirror-nav)))',
           }}
         >
-          <div className={`flex items-center gap-2 ${rightCollapsed ? 'flex-col' : ''}`}>
+          <div className="flex items-center gap-2">
             <div
               className="flex h-8 w-8 items-center justify-center rounded-full"
-              style={{ background: 'var(--mirror-accent-subtle)' }}
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--mirror-accent-subtle), color-mix(in srgb, var(--mirror-accent) 24%, transparent))',
+                boxShadow: '0 8px 18px color-mix(in srgb, var(--mirror-accent) 15%, transparent)',
+              }}
             >
               <Activity size={13} style={{ color: 'var(--mirror-accent)' }} />
             </div>
-            {!rightCollapsed && (
-              <div>
-                <div
-                  className="text-[11px] font-semibold uppercase tracking-[0.22em]"
-                  style={{ color: 'var(--mirror-secondary)' }}
-                >
-                  Map
-                </div>
-                <span className="text-sm font-semibold" style={{ color: 'var(--mirror-text)' }}>
-                  Psyche graph
-                </span>
+            <div>
+              <div
+                className="text-[11px] font-semibold uppercase tracking-[0.22em]"
+                style={{ color: 'var(--mirror-secondary)' }}
+              >
+                Mirror
               </div>
-            )}
-          </div>
-          <div className={`flex items-center ${rightCollapsed ? 'flex-col gap-2' : 'gap-3'}`}>
-            {!rightCollapsed && (
-              <div className="flex items-center gap-2">
-                <span
-                  className="rounded-full px-2 py-1 text-[10px] font-medium"
-                  style={{
-                    background: 'var(--mirror-surface)',
-                    color: 'var(--mirror-secondary)',
-                    border: '1px solid var(--mirror-border)',
-                  }}
-                >
-                  {graph.nodes.length} nodes
-                </span>
-                <span
-                  className="rounded-full px-2 py-1 text-[10px] font-medium"
-                  style={{
-                    background: 'var(--mirror-surface)',
-                    color: 'var(--mirror-secondary)',
-                    border: '1px solid var(--mirror-border)',
-                  }}
-                >
-                  {graph.edges.length} links
-                </span>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={toggleRight}
-              title={rightCollapsed ? 'Expand graph' : 'Collapse graph'}
-              aria-label={rightCollapsed ? 'Expand graph' : 'Collapse graph'}
-              className="mirror-focus-ring flex h-8 w-8 items-center justify-center rounded-full transition-colors"
-              style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-            >
-              {rightCollapsed ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
-            </button>
-          </div>
-        </div>
-
-        {rightCollapsed ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-2">
-            <div
-              className="flex h-11 w-11 items-center justify-center rounded-2xl"
-              style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-            >
-              <Brain size={18} />
+              <span
+                className="text-sm font-semibold"
+                style={{ color: 'var(--mirror-text)', letterSpacing: '0.01em' }}
+              >
+                Map
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={toggleRight}
-              className="mirror-focus-ring rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors"
-              style={{
-                background: 'var(--mirror-accent-subtle)',
-                color: 'var(--mirror-accent)',
-              }}
-            >
-              Open
-            </button>
           </div>
-        ) : (
-          <>
-            <div
-              className="relative m-3 flex-1 overflow-hidden rounded-[28px]"
+          <div className="flex items-center gap-2">
+            <span
+              className="rounded-full px-2 py-1 text-[10px] font-medium"
               style={{
-                background:
-                  'radial-gradient(circle at top, var(--mirror-surface), transparent 58%), var(--mirror-pane)',
+                background: 'var(--mirror-surface)',
+                color: 'var(--mirror-secondary)',
                 border: '1px solid var(--mirror-border)',
               }}
             >
-              {graph.nodes.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-full"
-                    style={{ background: 'var(--mirror-elevated)' }}
-                  >
-                    <Brain size={20} style={{ color: 'var(--mirror-muted)' }} />
-                  </div>
-                  <p className="text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
-                    Your psyche graph will build itself here
-                    <br />
-                    as you share what&apos;s on your mind.
-                  </p>
-                </div>
-              ) : (
-                <ReactFlow
-                  nodes={nodes}
-                  edges={edges}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onNodeClick={(_, node) => onSelectNode?.(node.id)}
-                  onPaneClick={() => onSelectNode?.(null)}
-                  nodeTypes={nodeTypes}
-                  fitView
-                  fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
-                  proOptions={{ hideAttribution: true }}
-                  minZoom={0.3}
-                  maxZoom={2}
-                  defaultEdgeOptions={{ type: 'default' }}
-                >
-                  <Background
-                    variant={BackgroundVariant.Dots}
-                    gap={26}
-                    size={1.2}
-                    color="var(--graph-dot-color)"
-                  />
-                  <Controls
-                    style={{
-                      background: 'var(--mirror-elevated)',
-                      border: '1px solid var(--mirror-border)',
-                      borderRadius: '999px',
-                      overflow: 'hidden',
-                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
-                    }}
-                    showInteractive={false}
-                  />
-                </ReactFlow>
-              )}
-            </div>
-
-            <div
-              className="flex flex-shrink-0 items-center justify-around px-4 pb-4 pt-1"
+              {graph.nodes.length} nodes
+            </span>
+            <span
+              className="rounded-full px-2 py-1 text-[10px] font-medium"
+              style={{
+                background: 'var(--mirror-surface)',
+                color: 'var(--mirror-secondary)',
+                border: '1px solid var(--mirror-border)',
+              }}
             >
-              <LegendItem type="user" label="You" />
-              <LegendItem type="domain" label="Theme" />
-              <LegendItem type="person" label="Person" />
-              <LegendItem type="role" label="Group" />
+              {graph.edges.length} links
+            </span>
+          </div>
+        </div>
+
+        {layout === 'primary' && (
+          <div className="px-5 pb-0 pt-4">
+            <div
+              className="rounded-[28px] border px-5 py-4"
+              style={{
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--mirror-surface) 86%, transparent), color-mix(in srgb, var(--mirror-accent-subtle) 240%, var(--mirror-nav)) 52%, color-mix(in srgb, var(--mirror-surface) 88%, transparent))',
+                borderColor: 'var(--mirror-border)',
+                boxShadow: '0 14px 34px rgba(53, 42, 27, 0.05)',
+              }}
+            >
+              <div
+                className="text-[11px] font-semibold uppercase tracking-[0.24em]"
+                style={{ color: 'var(--mirror-secondary)' }}
+              >
+                Mirror
+              </div>
+              <div className="mt-2 flex items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-xl font-semibold" style={{ color: 'var(--mirror-text)' }}>
+                    A living map of your inner world
+                  </h1>
+                  <p
+                    className="mt-1 max-w-2xl text-sm leading-relaxed"
+                    style={{ color: 'var(--mirror-secondary)' }}
+                  >
+                    Reflect in conversation, then watch recurring people, themes, and parts of life
+                    take shape here over time.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span
+                      className="rounded-full px-3 py-1 text-[11px] font-medium"
+                      style={{
+                        background: 'color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
+                        color: 'var(--mirror-accent)',
+                        border: '1px solid color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                      }}
+                    >
+                      Patterns
+                    </span>
+                    <span
+                      className="rounded-full px-3 py-1 text-[11px] font-medium"
+                      style={{
+                        background: 'color-mix(in srgb, var(--node-person-border) 12%, transparent)',
+                        color: 'var(--node-person-border)',
+                        border: '1px solid color-mix(in srgb, var(--node-person-border) 18%, var(--mirror-border))',
+                      }}
+                    >
+                      People
+                    </span>
+                    <span
+                      className="rounded-full px-3 py-1 text-[11px] font-medium"
+                      style={{
+                        background: 'color-mix(in srgb, var(--node-role-border) 12%, transparent)',
+                        color: 'var(--node-role-border)',
+                        border: '1px solid color-mix(in srgb, var(--node-role-border) 18%, var(--mirror-border))',
+                      }}
+                    >
+                      Themes
+                    </span>
+                  </div>
+                </div>
+                <div className="hidden items-center gap-2 md:flex">
+                  <span
+                    className="rounded-full px-3 py-1.5 text-[11px] font-medium"
+                    style={{
+                      background: 'var(--mirror-accent-subtle)',
+                      color: 'var(--mirror-accent)',
+                      border: '1px solid var(--mirror-accent-dim)',
+                    }}
+                  >
+                    Click dormant themes to begin
+                  </span>
+                </div>
+              </div>
             </div>
-          </>
+          </div>
         )}
+
+        <div
+          className={`relative flex-1 overflow-hidden ${layout === 'primary' ? 'm-5 rounded-[36px]' : 'm-3 rounded-[28px]'}`}
+          style={{
+            background:
+              'radial-gradient(circle at top, var(--mirror-surface), transparent 58%), var(--mirror-pane)',
+            border: '1px solid var(--mirror-border)',
+          }}
+        >
+          {graph.nodes.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-full"
+                style={{ background: 'var(--mirror-elevated)' }}
+              >
+                <Brain size={20} style={{ color: 'var(--mirror-muted)' }} />
+              </div>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
+                Your psyche graph will build itself here
+                <br />
+                as you share what&apos;s on your mind.
+              </p>
+            </div>
+          ) : (
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={(_, node) => onSelectNode?.(node.id)}
+              onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+              onNodeMouseLeave={() => setHoveredNodeId(null)}
+              onPaneClick={() => onSelectNode?.(null)}
+              nodeTypes={nodeTypes}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              fitView
+              fitViewOptions={{ padding: layout === 'primary' ? 0.24 : 0.3, maxZoom: 1.2 }}
+              proOptions={{ hideAttribution: true }}
+              minZoom={0.3}
+              maxZoom={2}
+              defaultEdgeOptions={{ type: 'default' }}
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={26}
+                size={1.2}
+                color="var(--graph-dot-color)"
+              />
+              <Controls
+                style={{
+                  background: 'var(--mirror-elevated)',
+                  border: '1px solid var(--mirror-border)',
+                  borderRadius: '999px',
+                  overflow: 'hidden',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+                }}
+                showInteractive={false}
+              />
+            </ReactFlow>
+          )}
+        </div>
+
+        <div
+          className={`flex flex-shrink-0 items-center justify-around ${layout === 'primary' ? 'px-6 pb-5 pt-0' : 'px-4 pb-4 pt-1'}`}
+        >
+          <LegendItem type="user" label="You" />
+          <LegendItem type="domain" label="Theme" />
+          <LegendItem type="person" label="Person" />
+          <LegendItem type="role" label="Group" />
+        </div>
       </div>
-    </aside>
+    </section>
   )
 }
 

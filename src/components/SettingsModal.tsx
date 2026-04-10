@@ -160,8 +160,8 @@ export default function SettingsModal() {
             />
             <PanelToggle
               icon={PanelRight}
-              title="Psyche graph"
-              description="Keep the graph available when you want spatial context."
+              title="Conversation panel"
+              description="Tuck the note and chat panel away to keep the map central."
               isCollapsed={rightCollapsed}
               onToggle={toggleRight}
             />

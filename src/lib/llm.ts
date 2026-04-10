@@ -1,6 +1,8 @@
 import { Graph, LLMResult, Message, NodeType } from '@/types'
 import { normalizeLabel } from '@/lib/utils'
 import { mockLLMCall, onboardingPrompt as mockOnboardingPrompt } from '@/lib/mockLLM'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = 'gpt-5.4'
@@ -42,7 +44,7 @@ const RESULT_SCHEMA = {
   },
 } as const
 
-const SYSTEM_PROMPT = `You are Mirror, a reflective conversation guide.
+const DEFAULT_SYSTEM_PROMPT = `You are Mirror, a reflective conversation guide.
 
 Your task each turn:
 1. Respond conversationally in 2-4 sentences.
@@ -78,7 +80,7 @@ User says: "I've been thinking about how work has bled into everything lately."
 Better response:
 "It sounds like work is no longer staying in the work domain. It's spilling into the rest of your life, and the fact that you're venting to Jen may be one of the few places that pressure gets somewhere. What does work bleeding into everything actually look like in your day?"`
 
-const TAGGER_PROMPT = `You are building a minimal node map of a person's life from one completed conversation.
+const DEFAULT_TAGGER_PROMPT = `You are building a minimal node map of a person's life from one completed conversation.
 
 Your goal:
 - Tag the conversation with a few durable nodes.
@@ -88,30 +90,69 @@ Your goal:
 Rules:
 - Return 1 to 6 entities, never zero.
 - Do not return emotion nodes.
-- The only tier-one domains are Family, Relationships, Work, Health, and Hobbies.
+- The only tier-one domains are Self, Health, Work, Relationships, Hobbies, and Lifestyle.
 - Tier-one domains should anchor the map. Everything else should build beneath them.
-- Prefer durable structure like Family, Work, Coworkers, Mom, Dad, Jen, Brother, Clients.
+- Prefer durable structure like Relationships, Work, Self, Lifestyle, Coworkers, Mom, Dad, Jen, Brother, Clients, Home, Routine.
 - When a specific person is known, prefer their actual name as a person node, not a generic label.
 - Use generic group nodes like Coworkers, Parents, Siblings, Clients as role/group containers.
 - Good: Work -> Coworkers -> Jen. Bad: Work -> Coworker.
 - If you include a named person like Jen and they belong to a group, also include the parent group node.
 - Avoid generic filler like "life", "feelings", "stress", "thoughts", "conversation".
 - Avoid creating new nodes unless the conversation clearly supports them.
-- Favor structures like Family -> Dad, Mom or Work -> Coworkers -> Jen.
+- Favor structures like Relationships -> Dad, Mom or Work -> Coworkers -> Jen or Lifestyle -> Home.
 - Relationships should be enough to place nodes in the map.
 - The user should be named "User".
 - If an existing node is a good fit, use its exact label.
 - Return valid JSON matching the schema exactly.`
 
-const ONBOARDING_PROMPT = `You are Mirror, a reflective companion starting a brand-new conversation.
+const DEFAULT_ONBOARDING_PROMPT = `You are Mirror, a reflective companion starting a brand-new conversation.
 
 Write a short onboarding opener:
 - 2 short paragraphs maximum
 - warm, clear, and grounded
 - invite specificity, not abstraction
 - ask exactly one concrete opening question
-- bias toward durable life areas like family, relationships, work, health, or hobbies
+- bias toward durable life areas like self, relationships, work, health, hobbies, or lifestyle
 - avoid therapy-speak, hype, or sounding robotic`
+
+type PromptFile = { prompt?: string }
+
+const promptCache = new Map<string, string>()
+
+function readPromptFile(filename: string, fallback: string): string {
+  if (process.env.NODE_ENV === 'production' && promptCache.has(filename)) {
+    return promptCache.get(filename) ?? fallback
+  }
+
+  try {
+    const filePath = path.join(process.cwd(), 'prompts', filename)
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as PromptFile
+    const prompt =
+      typeof parsed.prompt === 'string' && parsed.prompt.trim().length > 0
+        ? parsed.prompt
+        : fallback
+
+    if (process.env.NODE_ENV === 'production') {
+      promptCache.set(filename, prompt)
+    }
+
+    return prompt
+  } catch {
+    return fallback
+  }
+}
+
+function getSystemPrompt() {
+  return readPromptFile('conversation-turn.json', DEFAULT_SYSTEM_PROMPT)
+}
+
+function getTaggerPrompt() {
+  return readPromptFile('conversation-tagger.json', DEFAULT_TAGGER_PROMPT)
+}
+
+function getOnboardingPromptTemplate() {
+  return readPromptFile('onboarding.json', DEFAULT_ONBOARDING_PROMPT)
+}
 
 type InputMessage = {
   role: 'system' | 'user' | 'assistant'
@@ -150,6 +191,7 @@ export async function generateConversationTurn({
     userMessage,
     conversationMessages,
     graph,
+    systemPrompt: getSystemPrompt(),
   })
 
   const response = await fetch(OPENAI_API_URL, {
@@ -228,7 +270,7 @@ export async function generateConversationTags({
             {
               type: 'input_text',
               text: [
-                TAGGER_PROMPT,
+                getTaggerPrompt(),
                 'Existing nodes:',
                 existingNodes || '- none yet',
                 'Conversation transcript:',
@@ -280,7 +322,7 @@ export async function generateOnboardingPrompt(): Promise<string> {
       input: [
         {
           role: 'system',
-          content: [{ type: 'input_text', text: ONBOARDING_PROMPT }],
+          content: [{ type: 'input_text', text: getOnboardingPromptTemplate() }],
         },
       ],
       text: { format: { type: 'text' } },
@@ -304,10 +346,12 @@ function buildInputMessages({
   userMessage,
   conversationMessages,
   graph,
+  systemPrompt,
 }: {
   userMessage: string
   conversationMessages: Message[]
   graph: Graph
+  systemPrompt: string
 }): InputMessage[] {
   const history = conversationMessages.slice(-10).map<InputMessage>((message) => ({
     role: message.role === 'assistant' ? 'assistant' : 'user',
@@ -328,7 +372,7 @@ function buildInputMessages({
         {
           type: 'input_text',
           text: [
-            SYSTEM_PROMPT,
+            systemPrompt,
             'Relevant graph context:',
             graphContext,
           ].join('\n\n'),
@@ -495,8 +539,8 @@ function sanitizeTagResult(result: LLMResult): LLMResult {
 
   return {
     response: sanitized.response,
-    entities: [{ name: 'Family', type: 'domain' }],
-    relationships: [{ from: 'User', to: 'Family', type: 'has_context' }],
+    entities: [{ name: 'Self', type: 'domain' }],
+    relationships: [{ from: 'User', to: 'Self', type: 'has_context' }],
   }
 }
 

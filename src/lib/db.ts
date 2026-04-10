@@ -18,11 +18,13 @@ function resolveDatabaseUrl(): string | undefined {
   if (isBuildTime()) return undefined // keep build + seed on prisma/dev.db
 
   const runtimeDb = '/tmp/dev.db'
-  const candidateSeedDbs = [
-    path.join(process.cwd(), 'prisma', 'dev.db'),
-    path.join(process.cwd(), 'dev.db'),
-  ]
-  const seedDb = candidateSeedDbs.find((candidate) => fs.existsSync(candidate))
+  const prismaSeedDb = path.join(process.cwd(), 'prisma', 'dev.db')
+  const rootSeedDb = path.join(process.cwd(), 'dev.db')
+  const seedDb = fs.existsSync(prismaSeedDb)
+    ? prismaSeedDb
+    : fs.existsSync(rootSeedDb)
+      ? rootSeedDb
+      : null
 
   if (!fs.existsSync(runtimeDb) && seedDb) {
     fs.copyFileSync(seedDb, runtimeDb)
@@ -36,17 +38,17 @@ function isBuildTime(): boolean {
 }
 
 const databaseUrl = resolveDatabaseUrl()
-const adapter = new PrismaBetterSqlite3(
-  { url: databaseUrl ?? process.env.DATABASE_URL ?? 'file:./dev.db' },
-  { timestampFormat: 'unixepoch-ms' }
-)
+const resolvedUrl = databaseUrl ?? process.env.DATABASE_URL ?? 'file:./dev.db'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter,
+    adapter: new PrismaBetterSqlite3(
+      { url: resolvedUrl },
+      { timestampFormat: 'unixepoch-ms' }
+    ),
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
 
