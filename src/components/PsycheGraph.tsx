@@ -40,6 +40,7 @@ interface PsycheNodeData extends Record<string, unknown> {
   type: NodeType
   mentionCount: number
   highlighted: boolean
+  selected: boolean
   dormant: boolean
   question?: string
 }
@@ -50,7 +51,8 @@ function PsycheNode({ data }: NodeProps) {
   const Icon = config.icon
   const scale = 1 + Math.min(nodeData.mentionCount * 0.04, 0.24)
   const isDormant = nodeData.dormant
-  const shellClassName = `psyche-node-shell${isDormant ? ' is-dormant' : ''}`
+  const isSelected = nodeData.selected
+  const shellClassName = `psyche-node-shell${isDormant ? ' is-dormant' : ''}${isSelected ? ' is-selected' : ''}`
 
   return (
     <>
@@ -60,8 +62,10 @@ function PsycheNode({ data }: NodeProps) {
         style={{
           transform: `scale(${scale})`,
           opacity: isDormant ? 0.72 : 1,
-          filter: nodeData.highlighted
-            ? 'drop-shadow(0 12px 24px var(--mirror-accent-subtle))'
+          filter: isSelected
+            ? 'drop-shadow(0 22px 36px color-mix(in srgb, var(--mirror-accent) 34%, transparent))'
+            : nodeData.highlighted
+              ? 'drop-shadow(0 12px 24px var(--mirror-accent-subtle))'
             : 'none',
         }}
       >
@@ -71,16 +75,20 @@ function PsycheNode({ data }: NodeProps) {
             width: config.size,
             height: config.size,
             background: isDormant ? 'var(--node-dormant-bg)' : config.bg,
-            border: `1.5px solid ${
-              nodeData.highlighted
+            border: `${isSelected ? 2.75 : 1.5}px solid ${
+              isSelected
+                ? 'var(--mirror-accent-hover)'
+                : nodeData.highlighted
                 ? 'var(--mirror-accent)'
                 : isDormant
                   ? 'var(--node-dormant-border)'
                   : config.border
             }`,
             color: isDormant ? 'var(--node-dormant-fg)' : config.fg,
-            boxShadow: nodeData.highlighted
-              ? '0 0 0 6px var(--mirror-accent-subtle)'
+            boxShadow: isSelected
+              ? '0 0 0 7px color-mix(in srgb, var(--mirror-accent) 16%, transparent), 0 0 0 14px color-mix(in srgb, var(--mirror-accent) 8%, transparent), 0 16px 34px color-mix(in srgb, var(--mirror-accent) 18%, transparent)'
+              : nodeData.highlighted
+                ? '0 0 0 6px var(--mirror-accent-subtle)'
               : 'var(--node-shadow)',
           }}
         >
@@ -89,14 +97,27 @@ function PsycheNode({ data }: NodeProps) {
         <div
           className="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-[0.08em] transition-all duration-200 group-hover:-translate-y-0.5"
           style={{
-            color: nodeData.highlighted
+            color: isSelected
+              ? 'var(--mirror-accent-hover)'
+              : nodeData.highlighted
               ? 'var(--mirror-accent)'
               : isDormant
                 ? 'var(--node-dormant-fg)'
                 : 'var(--mirror-secondary)',
-            background: isDormant ? 'var(--node-dormant-label-bg)' : 'var(--node-label-bg)',
-            border: `1px solid ${isDormant ? 'var(--node-dormant-border)' : 'var(--mirror-border)'}`,
+            background: isSelected
+              ? 'color-mix(in srgb, var(--mirror-accent) 12%, var(--node-label-bg))'
+              : isDormant
+                ? 'var(--node-dormant-label-bg)'
+                : 'var(--node-label-bg)',
+            border: `1px solid ${
+              isSelected
+                ? 'color-mix(in srgb, var(--mirror-accent) 32%, var(--mirror-border))'
+                : isDormant
+                  ? 'var(--node-dormant-border)'
+                  : 'var(--mirror-border)'
+            }`,
             backdropFilter: 'blur(10px)',
+            boxShadow: isSelected ? '0 8px 20px var(--mirror-accent-subtle)' : 'none',
           }}
         >
           {nodeData.label}
@@ -340,6 +361,7 @@ export default function PsycheGraph({
         type: n.type,
         mentionCount: n.mentionCount,
         highlighted: highlighted.has(n.id),
+        selected: selectedNodeId === n.id,
         dormant: Boolean(n.dormant),
         question: n.question,
       } satisfies PsycheNodeData,
@@ -391,64 +413,6 @@ export default function PsycheGraph({
       }}
     >
       <div className="flex h-full w-full flex-col">
-        <div
-          className="flex flex-shrink-0 items-center justify-between px-4 py-4"
-          style={{
-            borderBottom: '1px solid var(--mirror-border)',
-            background:
-              'linear-gradient(135deg, color-mix(in srgb, var(--mirror-nav) 84%, var(--mirror-pane)), color-mix(in srgb, var(--mirror-accent-subtle) 280%, var(--mirror-nav)))',
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-full"
-              style={{
-                background:
-                  'linear-gradient(135deg, var(--mirror-accent-subtle), color-mix(in srgb, var(--mirror-accent) 24%, transparent))',
-                boxShadow: '0 8px 18px color-mix(in srgb, var(--mirror-accent) 15%, transparent)',
-              }}
-            >
-              <Activity size={13} style={{ color: 'var(--mirror-accent)' }} />
-            </div>
-            <div>
-              <div
-                className="text-[11px] font-semibold uppercase tracking-[0.22em]"
-                style={{ color: 'var(--mirror-secondary)' }}
-              >
-                Mirror
-              </div>
-              <span
-                className="text-sm font-semibold"
-                style={{ color: 'var(--mirror-text)', letterSpacing: '0.01em' }}
-              >
-                Map
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span
-              className="rounded-full px-2 py-1 text-[10px] font-medium"
-              style={{
-                background: 'var(--mirror-surface)',
-                color: 'var(--mirror-secondary)',
-                border: '1px solid var(--mirror-border)',
-              }}
-            >
-              {graph.nodes.length} nodes
-            </span>
-            <span
-              className="rounded-full px-2 py-1 text-[10px] font-medium"
-              style={{
-                background: 'var(--mirror-surface)',
-                color: 'var(--mirror-secondary)',
-                border: '1px solid var(--mirror-border)',
-              }}
-            >
-              {graph.edges.length} links
-            </span>
-          </div>
-        </div>
-
         {layout === 'primary' && (
           <div className="px-4 pb-0 pt-3">
             <div
@@ -460,14 +424,27 @@ export default function PsycheGraph({
                 boxShadow: '0 16px 40px rgba(53, 42, 27, 0.06)',
               }}
             >
-              <div
-                className="text-[11px] font-semibold uppercase tracking-[0.24em]"
-                style={{ color: 'var(--mirror-secondary)' }}
-              >
-                Mirror
-              </div>
-              <div className="mt-2 flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-4">
                 <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <div
+                      className="flex h-8 w-8 items-center justify-center rounded-full"
+                      style={{
+                        background:
+                          'linear-gradient(135deg, var(--mirror-accent-subtle), color-mix(in srgb, var(--mirror-accent) 24%, transparent))',
+                        boxShadow:
+                          '0 8px 18px color-mix(in srgb, var(--mirror-accent) 15%, transparent)',
+                      }}
+                    >
+                      <Activity size={13} style={{ color: 'var(--mirror-accent)' }} />
+                    </div>
+                    <div
+                      className="text-[11px] font-semibold uppercase tracking-[0.24em]"
+                      style={{ color: 'var(--mirror-secondary)' }}
+                    >
+                      Mirror map
+                    </div>
+                  </div>
                   <h1 className="text-xl font-semibold" style={{ color: 'var(--mirror-text)' }}>
                     A living map of your inner world
                   </h1>
@@ -475,8 +452,7 @@ export default function PsycheGraph({
                     className="mt-1 max-w-2xl text-sm leading-relaxed"
                     style={{ color: 'var(--mirror-secondary)' }}
                   >
-                    Reflect in conversation, then watch recurring people, themes, and parts of life
-                    take shape here over time.
+                    People, themes, and patterns take shape as you reflect.
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span
@@ -511,16 +487,26 @@ export default function PsycheGraph({
                     </span>
                   </div>
                 </div>
-                <div className="hidden items-center gap-2 md:flex">
+                <div className="hidden flex-wrap justify-end gap-2 md:flex">
                   <span
                     className="rounded-full px-3 py-1.5 text-[11px] font-medium"
                     style={{
-                      background: 'var(--mirror-accent-subtle)',
-                      color: 'var(--mirror-accent)',
-                      border: '1px solid var(--mirror-accent-dim)',
+                      background: 'var(--mirror-surface)',
+                      color: 'var(--mirror-secondary)',
+                      border: '1px solid var(--mirror-border)',
                     }}
                   >
-                    Click dormant themes to begin
+                    {graph.nodes.length} nodes
+                  </span>
+                  <span
+                    className="rounded-full px-3 py-1.5 text-[11px] font-medium"
+                    style={{
+                      background: 'var(--mirror-surface)',
+                      color: 'var(--mirror-secondary)',
+                      border: '1px solid var(--mirror-border)',
+                    }}
+                  >
+                    {graph.edges.length} links
                   </span>
                 </div>
               </div>

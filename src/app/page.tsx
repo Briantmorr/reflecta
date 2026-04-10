@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import ConversationList from '@/components/ConversationList'
 import ChatInterface from '@/components/ChatInterface'
 import PsycheGraph from '@/components/PsycheGraph'
@@ -8,8 +8,18 @@ import SettingsModal from '@/components/SettingsModal'
 import { useSettings } from '@/lib/settings'
 import { Conversation, ConversationListItem, Graph, Message, NodeView } from '@/types'
 
-function buildThemedOnboarding(theme: string) {
-  return `Let’s start with ${theme.toLowerCase()}.\n\nWhat feels most present or unresolved for you there right now?`
+const DEFAULT_STARTER_QUESTION = "What's been on your mind lately?"
+const NODE_STARTER_QUESTIONS: Record<string, string> = {
+  self: "What part of yourself has been most present lately?",
+  health: "How have you been feeling in your body or mind lately?",
+  work: "What's been most alive for you at work lately?",
+  relationships: "Who has been on your mind lately?",
+  hobbies: "What have you been drawn toward or wanting more of lately?",
+  lifestyle: "What rhythm or pattern in your daily life has been standing out lately?",
+}
+
+function buildNodeStarterQuestion(nodeLabel: string) {
+  return NODE_STARTER_QUESTIONS[nodeLabel.toLowerCase()] ?? `What's been most present around ${nodeLabel.toLowerCase()} lately?`
 }
 
 export default function Home() {
@@ -17,11 +27,12 @@ export default function Home() {
   const [conversations, setConversations] = useState<ConversationListItem[]>([])
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] })
-  const [onboarding, setOnboarding] = useState<string | null>(null)
+  const [starterPrompt, setStarterPrompt] = useState<string | null>(DEFAULT_STARTER_QUESTION)
   const [isSending, setIsSending] = useState(false)
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([])
   const [nodeView, setNodeView] = useState<NodeView | null>(null)
+  const didAutoOpenConversation = useRef(false)
 
   // ─── Fetchers ──────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
@@ -40,12 +51,6 @@ export default function Home() {
     return (await res.json()) as Conversation
   }, [])
 
-  // ─── Initial load ──────────────────────────────────────
-  useEffect(() => {
-    fetchConversations()
-    fetchGraph()
-  }, [fetchConversations, fetchGraph])
-
   // ─── Handlers ──────────────────────────────────────────
   const handleSelect = useCallback(
     async (id: string) => {
@@ -53,16 +58,7 @@ export default function Home() {
       if (!convo) return
       setActiveConversation(convo)
 
-      // If empty, fetch an onboarding prompt
-      if ((convo.messages?.length ?? 0) === 0) {
-        const res = await fetch(`/api/conversations/${id}/messages`)
-        if (res.ok) {
-          const { onboarding } = await res.json()
-          setOnboarding(onboarding)
-        }
-      } else {
-        setOnboarding(null)
-      }
+      setStarterPrompt((convo.messages?.length ?? 0) === 0 ? DEFAULT_STARTER_QUESTION : null)
 
       setHighlightedNodeIds((convo.tags ?? []).map((tag) => tag.nodeId))
     },
@@ -77,29 +73,47 @@ export default function Home() {
     await handleSelect(created.id)
   }, [fetchConversations, handleSelect])
 
-  const handleCreateThemedConversation = useCallback(
-    async (theme: string, nodeId?: string) => {
-      const res = await fetch('/api/conversations', { method: 'POST' })
-      if (!res.ok) return
-      const created = await res.json()
-      const convo = await fetchConversation(created.id)
-      if (!convo) return
+  // ─── Initial load ──────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
 
-      setActiveConversation(convo)
-      setNodeView(null)
-      setOnboarding(buildThemedOnboarding(theme))
-      setHighlightedNodeIds(nodeId ? [nodeId] : [])
-      await fetchConversations()
-    },
-    [fetchConversation, fetchConversations]
-  )
+    async function loadInitialState() {
+      const [conversationRes] = await Promise.all([
+        fetch('/api/conversations'),
+        fetchGraph(),
+      ])
+
+      if (!conversationRes.ok || cancelled) return
+
+      const initialConversations = (await conversationRes.json()) as ConversationListItem[]
+      if (cancelled) return
+
+      setConversations(initialConversations)
+
+      if (initialConversations.length > 0) {
+        didAutoOpenConversation.current = true
+        await handleSelect(initialConversations[0].id)
+        return
+      }
+
+      if (didAutoOpenConversation.current) return
+      didAutoOpenConversation.current = true
+      await handleCreate()
+    }
+
+    void loadInitialState()
+
+    return () => {
+      cancelled = true
+    }
+  }, [fetchGraph, handleCreate, handleSelect])
 
   const handleDelete = useCallback(
     async (id: string) => {
       await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
       if (activeConversation?.id === id) {
         setActiveConversation(null)
-        setOnboarding(null)
+        setStarterPrompt(DEFAULT_STARTER_QUESTION)
       }
       await fetchConversations()
       await fetchGraph()
@@ -111,7 +125,7 @@ export default function Home() {
     async (content: string) => {
       if (!activeConversation || isSending) return
       setIsSending(true)
-      setOnboarding(null)
+      setStarterPrompt(null)
 
       // Optimistically add the user message
       const optimisticUserMsg: Message = {
@@ -228,21 +242,19 @@ export default function Home() {
       }
 
       const node = graph.nodes.find((candidate) => candidate.id === nodeId)
-      if (!node || node.type === 'user') return
+      if (!node) return
 
-      if (node.type === 'domain' && node.dormant) {
-        void handleCreateThemedConversation(node.label, node.id)
-        return
-      }
-
-      setNodeView({ nodeId: node.id, label: node.label })
+      setNodeView({ nodeId: node.id, label: node.label, type: node.type })
       setHighlightedNodeIds([node.id])
+      if (node.type !== 'user' && (activeConversation?.messages?.length ?? 0) === 0) {
+        setStarterPrompt(buildNodeStarterQuestion(node.label))
+      }
       openLeft()
     },
-    [activeConversation?.tags, graph.nodes, handleCreateThemedConversation, openLeft]
+    [activeConversation?.messages?.length, activeConversation?.tags, graph.nodes, openLeft]
   )
 
-  const visibleConversations = nodeView
+  const visibleConversations = nodeView && nodeView.type !== 'user'
     ? conversations.filter((conversation) =>
         (conversation.tags ?? []).some((tag) => tag.nodeId === nodeView.nodeId)
       )
@@ -271,7 +283,7 @@ export default function Home() {
       />
       <ChatInterface
         conversation={activeConversation}
-        onboardingPrompt={onboarding}
+        starterPrompt={starterPrompt}
         onCreateConversation={handleCreate}
         onSendMessage={handleSendMessage}
         isSending={isSending}

@@ -61,6 +61,7 @@ export interface Graph {
 export interface NodeView {
   nodeId: string
   label: string
+  type: NodeType
 }
 
 // ─── LLM contract ─────────────────────────────────────────────

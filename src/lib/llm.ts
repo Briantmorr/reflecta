@@ -1,6 +1,6 @@
 import { Graph, LLMResult, Message, NodeType } from '@/types'
 import { normalizeLabel } from '@/lib/utils'
-import { mockLLMCall, onboardingPrompt as mockOnboardingPrompt } from '@/lib/mockLLM'
+import { mockLLMCall } from '@/lib/mockLLM'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -123,16 +123,6 @@ Rules:
 - If an existing node is a good fit, use its exact label.
 - Return valid JSON matching the schema exactly.`
 
-const DEFAULT_ONBOARDING_PROMPT = `You are starting a brand-new conversation with someone.
-
-Write a short onboarding opener:
-- 2 short paragraphs maximum
-- warm, clear, and grounded
-- invite specificity, not abstraction
-- ask exactly one concrete opening question
-- bias toward durable life areas like self, relationships, work, health, hobbies, or lifestyle
-- avoid therapy-speak, hype, or sounding robotic`
-
 type PromptFile = { prompt?: string }
 
 const promptCache = new Map<string, string>()
@@ -170,10 +160,6 @@ function getSystemPrompt() {
 
 function getTaggerPrompt() {
   return getPersona() + '\n\n---\n\n' + readPromptFile('conversation-tagger.json', DEFAULT_TAGGER_PROMPT)
-}
-
-function getOnboardingPromptTemplate() {
-  return getPersona() + '\n\n---\n\n' + readPromptFile('onboarding.json', DEFAULT_ONBOARDING_PROMPT)
 }
 
 type InputMessage = {
@@ -325,43 +311,6 @@ export async function generateConversationTags({
   }
 
   return sanitizeTagResult(JSON.parse(rawText) as LLMResult, transcript)
-}
-
-export async function generateOnboardingPrompt(): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return mockOnboardingPrompt()
-  }
-
-  const response = await fetch(OPENAI_API_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      input: [
-        {
-          role: 'system',
-          content: [{ type: 'input_text', text: getOnboardingPromptTemplate() }],
-        },
-      ],
-      text: { format: { type: 'text' } },
-    }),
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`OpenAI onboarding failed (${response.status}): ${errorText}`)
-  }
-
-  const payload = (await response.json()) as OpenAIResponse
-  if (payload.error?.message) {
-    throw new Error(payload.error.message)
-  }
-
-  return extractOutputText(payload) || mockOnboardingPrompt()
 }
 
 function buildInputMessages({

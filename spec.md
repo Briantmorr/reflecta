@@ -17,7 +17,9 @@ Light mode is the default.
 - the map is the first thing the user sees
 - the six core domains are always present around `You`
 - dormant core domains are greyed out but still hoverable and clickable
-- clicking a dormant domain starts a themed conversation
+- clicking a dormant domain selects that node and can load a single themed starter question into an empty conversation
+- the default blank conversation starter is `What's been on your mind lately?`
+- starter questions are local UI copy, not LLM-generated prompts
 - conversation tags are applied after the user presses `Update map`
 - the graph re-renders from conversation tags, not from per-message extraction
 
@@ -69,7 +71,8 @@ Tagging rules:
 - the conversation panel is the right-side support surface, not the primary entry point
 - the conversation panel is collapsible
 - the map itself is not collapsible
-- the empty state should include a real `Start conversation` button
+- the app opens directly into a blank conversation with one starter question
+- selecting graph nodes should not create a conversation record by itself
 - user and Mirror messages should be visually distinct while staying in palette
 - conversation tags appear at the top of the active conversation
 - tags can be manually removed and should update the graph immediately
@@ -82,7 +85,7 @@ In node view:
 
 - the history pane expands
 - the history list filters to conversations tagged with that node
-- the history header remains `Mirror history`
+- the history header is `Node Summary`
 - a dedicated node-view indicator card appears above the filtered list
 - clicking another node switches node view
 - clicking empty graph space exits node view

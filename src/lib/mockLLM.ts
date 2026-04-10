@@ -326,18 +326,6 @@ export function mockLLMCall(userMessage: string): LLMResult {
   return { response, entities, relationships }
 }
 
-/** Onboarding / seed question — used when a conversation is empty */
-export function onboardingPrompt(): string {
-  const prompts = [
-    "Welcome. Let's start somewhere grounding — can you tell me about your family?",
-    "I'd love to get to know you. What does your work look like these days?",
-    "Who are the most important people in your life right now?",
-    "What has been on your mind lately?",
-    "What is currently causing you stress — or excitement?",
-  ]
-  return prompts[Math.floor(Math.random() * prompts.length)]
-}
-
 // ─── Helpers ────────────────────────────────────────────────────
 function pickFrom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]

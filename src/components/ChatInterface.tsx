@@ -17,7 +17,7 @@ import { useSettings } from '@/lib/settings'
 
 interface ChatInterfaceProps {
   conversation: Conversation | null
-  onboardingPrompt: string | null
+  starterPrompt: string | null
   onCreateConversation: () => Promise<void>
   onSendMessage: (content: string) => Promise<void>
   onUpdateTags: () => Promise<void>
@@ -29,7 +29,7 @@ interface ChatInterfaceProps {
 
 export default function ChatInterface({
   conversation,
-  onboardingPrompt,
+  starterPrompt,
   onCreateConversation,
   onSendMessage,
   onUpdateTags,
@@ -153,11 +153,10 @@ export default function ChatInterface({
           </div>
           <div>
             <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--mirror-text)' }}>
-              Select or start a conversation
+              Start with one question
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
-              Mirror is a reflective companion. As you talk, a living map of your inner
-              world takes shape in the center.
+              What's been on your mind lately?
             </p>
           </div>
           <div>
@@ -313,8 +312,8 @@ export default function ChatInterface({
             </p>
           </div>
 
-          {messages.length === 0 && onboardingPrompt && (
-            <MessageBubble role="assistant" content={onboardingPrompt} isOnboarding />
+          {messages.length === 0 && starterPrompt && (
+            <MessageBubble role="assistant" content={starterPrompt} isStarter />
           )}
 
           {messages.map((m) => (
@@ -417,12 +416,12 @@ export default function ChatInterface({
 interface MessageBubbleProps {
   role: Message['role']
   content: string
-  isOnboarding?: boolean
+  isStarter?: boolean
 }
 
-function MessageBubble({ role, content, isOnboarding }: MessageBubbleProps) {
+function MessageBubble({ role, content, isStarter }: MessageBubbleProps) {
   const isUser = role === 'user'
-  const roleLabel = isOnboarding ? 'Onboarding' : isUser ? 'You' : 'Mirror'
+  const roleLabel = isStarter ? 'Starter' : isUser ? 'You' : 'Mirror'
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -431,22 +430,22 @@ function MessageBubble({ role, content, isOnboarding }: MessageBubbleProps) {
         style={{
           background: isUser
             ? 'var(--mirror-user-message-bg)'
-            : isOnboarding
+            : isStarter
               ? 'transparent'
               : 'var(--mirror-mirror-message-bg)',
-          border: isOnboarding
+          border: isStarter
             ? '1px dashed var(--mirror-border)'
             : isUser
               ? '1px solid var(--mirror-user-message-border)'
               : '1px solid var(--mirror-mirror-message-border)',
           color: 'var(--mirror-text)',
-          boxShadow: isOnboarding ? 'none' : '0 10px 24px rgba(53, 42, 27, 0.04)',
+          boxShadow: isStarter ? 'none' : '0 10px 24px rgba(53, 42, 27, 0.04)',
         }}
       >
         <div
           className="mb-1.5 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider"
           style={{
-            color: isOnboarding
+            color: isStarter
               ? 'var(--mirror-accent)'
               : isUser
                 ? 'var(--mirror-user-message-label)'
