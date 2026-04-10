@@ -26,8 +26,13 @@ function resolveDatabaseUrl(): string | undefined {
       ? rootSeedDb
       : null
 
+  console.log(`[db] Vercel runtime: seedDb=${seedDb ? 'found' : 'NOT found'} (prisma=${fs.existsSync(prismaSeedDb)}, root=${fs.existsSync(rootSeedDb)})`)
+
   if (!fs.existsSync(runtimeDb) && seedDb) {
     fs.copyFileSync(seedDb, runtimeDb)
+    console.log(`[db] Copied seed DB to ${runtimeDb} (${fs.statSync(runtimeDb).size} bytes)`)
+  } else if (!fs.existsSync(runtimeDb) && !seedDb) {
+    console.warn('[db] WARNING: No seed DB found in bundle and no runtime DB exists. DB will be empty.')
   }
   return `file:${runtimeDb}`
 }

@@ -222,8 +222,10 @@ export async function getFullGraph() {
     }
   } catch (error) {
     if ((error as PrismaErrorLike)?.code === 'P2021') {
+      console.error('[getFullGraph] Table not found (P2021) — DB may not be seeded:', error)
       return { nodes: [], edges: [] }
     }
+    console.error('[getFullGraph] Unexpected error:', error)
     throw error
   }
 }
