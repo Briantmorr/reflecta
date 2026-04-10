@@ -115,7 +115,10 @@ Write a short onboarding opener:
 
 type InputMessage = {
   role: 'system' | 'user' | 'assistant'
-  content: Array<{ type: 'input_text'; text: string }>
+  content: Array<
+    | { type: 'input_text'; text: string }
+    | { type: 'output_text'; text: string }
+  >
 }
 
 type OpenAIResponse = {
@@ -308,7 +311,12 @@ function buildInputMessages({
 }): InputMessage[] {
   const history = conversationMessages.slice(-10).map<InputMessage>((message) => ({
     role: message.role === 'assistant' ? 'assistant' : 'user',
-    content: [{ type: 'input_text', text: message.content }],
+    content: [
+      {
+        type: message.role === 'assistant' ? 'output_text' : 'input_text',
+        text: message.content,
+      },
+    ],
   }))
 
   const graphContext = buildGraphContext(graph, userMessage, conversationMessages)

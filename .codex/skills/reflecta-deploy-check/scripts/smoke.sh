@@ -54,3 +54,11 @@ else
   cat /tmp/reflecta-create.json >&2
   exit 1
 fi
+
+conversation_id="$(node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync("/tmp/reflecta-create.json","utf8")); process.stdout.write(data.id)')"
+
+first_message_status="$(curl -s -o /tmp/reflecta-message-1.json -w '%{http_code}' -X POST "$BASE_URL/api/conversations/$conversation_id/messages" -H 'Content-Type: application/json' --data '{"content":"Work has been bleeding into everything lately."}')"
+check_status "first message" "200" "$first_message_status"
+
+second_message_status="$(curl -s -o /tmp/reflecta-message-2.json -w '%{http_code}' -X POST "$BASE_URL/api/conversations/$conversation_id/messages" -H 'Content-Type: application/json' --data '{"content":"It followed me into dinner and I kept thinking about it after I got home."}')"
+check_status "second message" "200" "$second_message_status"

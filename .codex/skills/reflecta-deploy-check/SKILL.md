@@ -28,6 +28,7 @@ Use this skill after shipping or changing frontend behavior that should be verif
 - `GET /api/graph` returns JSON.
 - `GET /api/conversations` returns a non-500 response.
 - `POST /api/conversations` returns `201` when the app should allow public conversation creation.
+- Two sequential `POST /api/conversations/[id]/messages` calls both succeed.
 
 ## Notes
 
