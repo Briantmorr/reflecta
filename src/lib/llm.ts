@@ -1,6 +1,6 @@
 import { Graph, LLMResult, Message, NodeType } from '@/types'
 import { normalizeLabel } from '@/lib/utils'
-import { mockLLMCall } from '@/lib/mockLLM'
+import { mockLLMCall, onboardingPrompt as mockOnboardingPrompt } from '@/lib/mockLLM'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = 'gpt-5.4'
@@ -46,8 +46,10 @@ const SYSTEM_PROMPT = `You are Mirror, a reflective conversation guide.
 
 Your task each turn:
 1. Respond conversationally in 2-4 sentences.
-2. Ask at most one grounded follow-up question.
-3. Extract durable graph entities and relationships from the user's message.
+2. Offer a distilled reflection or insight when a real pattern is visible.
+3. Make connections across the user's life when the graph or prior turns support it.
+4. Ask at most one grounded follow-up question.
+5. Extract durable graph entities and relationships from the user's message.
 
 Rules for extraction:
 - The user should be named "User".
@@ -56,7 +58,25 @@ Rules for extraction:
 - Normalize obvious variants: "father" -> "Dad", "mother" -> "Mom", "job" -> "Work".
 - Keep relationship labels short, snake_case, and semantically specific.
 - If no entity or relationship is warranted, return an empty array.
-- Return valid JSON matching the schema exactly.`
+- Return valid JSON matching the schema exactly.
+
+Rules for the response:
+- Sound perceptive, calm, and concise.
+- Prefer reflecting patterns back to the user over giving generic reassurance.
+- If prior notes or graph context suggest a connection, name it clearly.
+- Good response shape:
+  - brief distilled observation
+  - one connection or implication
+  - one concrete follow-up question
+- Avoid filler like "That sounds hard" unless followed by a real insight.
+- Avoid citing studies, research, or statistics unless explicitly asked.
+- Avoid therapeutic clichés or vague encouragement.
+- Stay close to the user's actual words and lived specifics.
+
+Example:
+User says: "I've been thinking about how work has bled into everything lately."
+Better response:
+"It sounds like work is no longer staying in the work domain. It's spilling into the rest of your life, and the fact that you're venting to Jen may be one of the few places that pressure gets somewhere. What does work bleeding into everything actually look like in your day?"`
 
 const TAGGER_PROMPT = `You are building a minimal node map of a person's life from one completed conversation.
 
@@ -82,6 +102,16 @@ Rules:
 - The user should be named "User".
 - If an existing node is a good fit, use its exact label.
 - Return valid JSON matching the schema exactly.`
+
+const ONBOARDING_PROMPT = `You are Mirror, a reflective companion starting a brand-new conversation.
+
+Write a short onboarding opener:
+- 2 short paragraphs maximum
+- warm, clear, and grounded
+- invite specificity, not abstraction
+- ask exactly one concrete opening question
+- bias toward durable life areas like family, relationships, work, health, or hobbies
+- avoid therapy-speak, hype, or sounding robotic`
 
 type InputMessage = {
   role: 'system' | 'user' | 'assistant'
@@ -228,6 +258,43 @@ export async function generateConversationTags({
   }
 
   return sanitizeTagResult(JSON.parse(rawText) as LLMResult)
+}
+
+export async function generateOnboardingPrompt(): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return mockOnboardingPrompt()
+  }
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: 'system',
+          content: [{ type: 'input_text', text: ONBOARDING_PROMPT }],
+        },
+      ],
+      text: { format: { type: 'text' } },
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`OpenAI onboarding failed (${response.status}): ${errorText}`)
+  }
+
+  const payload = (await response.json()) as OpenAIResponse
+  if (payload.error?.message) {
+    throw new Error(payload.error.message)
+  }
+
+  return extractOutputText(payload) || mockOnboardingPrompt()
 }
 
 function buildInputMessages({

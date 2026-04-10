@@ -5,9 +5,11 @@ import ConversationList from '@/components/ConversationList'
 import ChatInterface from '@/components/ChatInterface'
 import PsycheGraph from '@/components/PsycheGraph'
 import SettingsModal from '@/components/SettingsModal'
-import { Conversation, ConversationListItem, Graph, Message } from '@/types'
+import { useSettings } from '@/lib/settings'
+import { Conversation, ConversationListItem, Graph, Message, NodeView } from '@/types'
 
 export default function Home() {
+  const { openLeft } = useSettings()
   const [conversations, setConversations] = useState<ConversationListItem[]>([])
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
   const [graph, setGraph] = useState<Graph>({ nodes: [], edges: [] })
@@ -15,6 +17,7 @@ export default function Home() {
   const [isSending, setIsSending] = useState(false)
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([])
+  const [nodeView, setNodeView] = useState<NodeView | null>(null)
 
   // ─── Fetchers ──────────────────────────────────────────
   const fetchConversations = useCallback(async () => {
@@ -191,17 +194,47 @@ export default function Home() {
     [activeConversation, fetchConversations]
   )
 
+  const handleSelectNode = useCallback(
+    (nodeId: string | null) => {
+      if (!nodeId) {
+        setNodeView(null)
+        if (activeConversation?.tags?.length) {
+          setHighlightedNodeIds(activeConversation.tags.map((tag) => tag.nodeId))
+        } else {
+          setHighlightedNodeIds([])
+        }
+        return
+      }
+
+      const node = graph.nodes.find((candidate) => candidate.id === nodeId)
+      if (!node || node.type === 'user') return
+
+      setNodeView({ nodeId: node.id, label: node.label })
+      setHighlightedNodeIds([node.id])
+      openLeft()
+    },
+    [activeConversation?.tags, graph.nodes, openLeft]
+  )
+
+  const visibleConversations = nodeView
+    ? conversations.filter((conversation) =>
+        (conversation.tags ?? []).some((tag) => tag.nodeId === nodeView.nodeId)
+      )
+    : conversations
+
   return (
     <main
       className="flex h-screen overflow-hidden"
       style={{ background: 'var(--mirror-bg)' }}
     >
       <ConversationList
-        conversations={conversations}
+        conversations={visibleConversations}
         activeConversationId={activeConversation?.id ?? null}
         onSelect={handleSelect}
         onCreate={handleCreate}
         onDelete={handleDelete}
+        nodeView={nodeView}
+        onClearNodeView={() => handleSelectNode(null)}
       />
       <ChatInterface
         conversation={activeConversation}
@@ -212,7 +245,12 @@ export default function Home() {
         onRemoveTag={handleRemoveTag}
         isUpdatingTags={isUpdatingTags}
       />
-      <PsycheGraph graph={graph} highlightedNodeIds={highlightedNodeIds} />
+      <PsycheGraph
+        graph={graph}
+        highlightedNodeIds={highlightedNodeIds}
+        selectedNodeId={nodeView?.nodeId ?? null}
+        onSelectNode={handleSelectNode}
+      />
       <SettingsModal />
     </main>
   )

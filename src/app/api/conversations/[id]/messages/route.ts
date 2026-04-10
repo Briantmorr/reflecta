@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { onboardingPrompt } from '@/lib/mockLLM'
 import { getFullGraph } from '@/lib/graph'
-import { generateConversationTurn } from '@/lib/llm'
+import { generateConversationTurn, generateOnboardingPrompt } from '@/lib/llm'
 import { deriveConversationTitle } from '@/lib/utils'
 import { AUTH_ENABLED, currentUserId } from '@/lib/auth'
 import { Message } from '@/types'
@@ -102,24 +101,29 @@ export async function POST(request: Request, { params }: Params) {
  * (Used by the client when it opens a brand-new conversation.)
  */
 export async function GET(_: Request, { params }: Params) {
-  const userId = await currentUserId()
-  if (AUTH_ENABLED && !userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  if (AUTH_ENABLED) {
-    const owned = await prisma.conversation.findUnique({
-      where: { id: params.id },
-      select: { userId: true },
-    })
-    if (!owned) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (owned.userId !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  try {
+    const userId = await currentUserId()
+    if (AUTH_ENABLED && !userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-  }
+    if (AUTH_ENABLED) {
+      const owned = await prisma.conversation.findUnique({
+        where: { id: params.id },
+        select: { userId: true },
+      })
+      if (!owned) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      if (owned.userId !== userId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
 
-  const count = await prisma.message.count({ where: { conversationId: params.id } })
-  if (count === 0) {
-    return NextResponse.json({ onboarding: onboardingPrompt() })
+    const count = await prisma.message.count({ where: { conversationId: params.id } })
+    if (count === 0) {
+      return NextResponse.json({ onboarding: await generateOnboardingPrompt() })
+    }
+    return NextResponse.json({ onboarding: null })
+  } catch (err) {
+    console.error('[GET /api/conversations/[id]/messages]', err)
+    return NextResponse.json({ error: 'Failed to fetch onboarding prompt' }, { status: 500 })
   }
-  return NextResponse.json({ onboarding: null })
 }

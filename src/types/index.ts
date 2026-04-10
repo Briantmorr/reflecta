@@ -56,6 +56,11 @@ export interface Graph {
   edges: GraphEdge[]
 }
 
+export interface NodeView {
+  nodeId: string
+  label: string
+}
+
 // ─── LLM contract ─────────────────────────────────────────────
 // The shape returned by both mockLLM and (future) real LLM
 export interface ExtractedEntity {

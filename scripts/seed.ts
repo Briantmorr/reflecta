@@ -4,12 +4,10 @@
  *
  * Run with:  npm run db:seed
  */
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../src/lib/db'
 import { mockLLMCall } from '../src/lib/mockLLM'
 import { applyConversationMap, ensureUserNode } from '../src/lib/graph'
 import { deriveConversationTitle } from '../src/lib/utils'
-
-const prisma = new PrismaClient()
 
 interface SeedConversation {
   userMessages: string[]

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Sparkles, Trash2 } from 'lucide-react'
-import { ConversationListItem } from '@/types'
+import { MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Sparkles, Trash2, X } from 'lucide-react'
+import { ConversationListItem, NodeView } from '@/types'
 import { useSettings } from '@/lib/settings'
 import { formatDate } from '@/lib/utils'
 
@@ -12,6 +12,8 @@ interface ConversationListProps {
   onSelect: (id: string) => void
   onCreate: () => void
   onDelete: (id: string) => void
+  nodeView: NodeView | null
+  onClearNodeView: () => void
 }
 
 export default function ConversationList({
@@ -20,6 +22,8 @@ export default function ConversationList({
   onSelect,
   onCreate,
   onDelete,
+  nodeView,
+  onClearNodeView,
 }: ConversationListProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -112,22 +116,83 @@ export default function ConversationList({
           ) : conversations.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
               <p className="text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
-                No conversations yet.
+                {nodeView ? 'No notes tagged with this node yet.' : 'No conversations yet.'}
               </p>
-              <button
-                type="button"
-                onClick={onCreate}
-                className="mirror-focus-ring rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{
-                  background: 'var(--mirror-accent-subtle)',
-                  color: 'var(--mirror-accent)',
-                }}
-              >
-                Start one
-              </button>
+              {nodeView ? (
+                <button
+                  type="button"
+                  onClick={onClearNodeView}
+                  className="mirror-focus-ring rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{
+                    background: 'var(--mirror-accent-subtle)',
+                    color: 'var(--mirror-accent)',
+                  }}
+                >
+                  Exit node view
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onCreate}
+                  className="mirror-focus-ring rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+                  style={{
+                    background: 'var(--mirror-accent-subtle)',
+                    color: 'var(--mirror-accent)',
+                  }}
+                >
+                  Start one
+                </button>
+              )}
             </div>
           ) : (
-            <ul className="space-y-1 px-3">
+            <div className="space-y-3 px-3">
+              {nodeView && (
+                <div
+                  className="flex items-center justify-between rounded-2xl border px-3 py-2"
+                  style={{
+                    background: 'rgba(168, 213, 186, 0.16)',
+                    borderColor: 'rgba(95, 145, 115, 0.24)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.24)',
+                  }}
+                >
+                  <div className="min-w-0">
+                    <div
+                      className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                      style={{ color: 'rgba(66, 107, 82, 0.88)' }}
+                    >
+                      Node view
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span
+                        className="inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
+                        style={{
+                          background: 'rgba(111, 163, 129, 0.16)',
+                          color: 'rgb(59, 94, 72)',
+                          border: '1px solid rgba(95, 145, 115, 0.2)',
+                        }}
+                      >
+                        {nodeView.label}
+                      </span>
+                      <span className="truncate text-xs" style={{ color: 'rgba(66, 107, 82, 0.8)' }}>
+                        Matching notes only
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClearNodeView}
+                    className="mirror-focus-ring flex h-7 w-7 items-center justify-center rounded-full"
+                    style={{
+                      background: 'rgba(255,255,255,0.5)',
+                      color: 'rgb(59, 94, 72)',
+                    }}
+                    aria-label="Exit node view"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              )}
+              <ul className="space-y-1">
               {conversations.map((c) => {
                 const isActive = c.id === activeConversationId
                 const isHovered = c.id === hoveredId
@@ -194,7 +259,8 @@ export default function ConversationList({
                   </li>
                 )
               })}
-            </ul>
+              </ul>
+            </div>
           )}
         </div>
 

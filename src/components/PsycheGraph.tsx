@@ -32,6 +32,8 @@ import { useSettings } from '@/lib/settings'
 interface PsycheGraphProps {
   graph: Graph
   highlightedNodeIds?: string[]
+  selectedNodeId?: string | null
+  onSelectNode?: (nodeId: string | null) => void
 }
 
 // ─── Custom node rendering ─────────────────────────────────
@@ -224,11 +226,18 @@ function computeLayout(graph: Graph) {
 }
 
 // ─── Main component ───────────────────────────────────────
-export default function PsycheGraph({ graph, highlightedNodeIds = [] }: PsycheGraphProps) {
+export default function PsycheGraph({
+  graph,
+  highlightedNodeIds = [],
+  selectedNodeId = null,
+  onSelectNode,
+}: PsycheGraphProps) {
   const { rightCollapsed, toggleRight } = useSettings()
   const initialNodes = useMemo<FlowNode[]>(() => {
     const positions = computeLayout(graph)
-    const highlighted = new Set(highlightedNodeIds)
+    const highlighted = new Set(
+      selectedNodeId ? [...highlightedNodeIds, selectedNodeId] : highlightedNodeIds
+    )
 
     return graph.nodes.map((n) => ({
       id: n.id,
@@ -395,6 +404,8 @@ export default function PsycheGraph({ graph, highlightedNodeIds = [] }: PsycheGr
                   edges={edges}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
+                  onNodeClick={(_, node) => onSelectNode?.(node.id)}
+                  onPaneClick={() => onSelectNode?.(null)}
                   nodeTypes={nodeTypes}
                   fitView
                   fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}

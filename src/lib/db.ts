@@ -1,3 +1,4 @@
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import { PrismaClient } from '@prisma/client'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -14,6 +15,7 @@ import path from 'node:path'
  */
 function resolveDatabaseUrl(): string | undefined {
   if (!process.env.VERCEL) return undefined // use env DATABASE_URL as-is
+  if (isBuildTime()) return undefined // keep build + seed on prisma/dev.db
 
   const runtimeDb = '/tmp/dev.db'
   const seedDb = path.join(process.cwd(), 'prisma', 'dev.db')
@@ -24,14 +26,23 @@ function resolveDatabaseUrl(): string | undefined {
   return `file:${runtimeDb}`
 }
 
+function isBuildTime(): boolean {
+  const lifecycle = process.env.npm_lifecycle_event
+  return lifecycle === 'build' || lifecycle === 'vercel-build'
+}
+
 const databaseUrl = resolveDatabaseUrl()
+const adapter = new PrismaBetterSqlite3(
+  { url: databaseUrl ?? process.env.DATABASE_URL ?? 'file:./dev.db' },
+  { timestampFormat: 'unixepoch-ms' }
+)
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined }
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    ...(databaseUrl ? { datasources: { db: { url: databaseUrl } } } : {}),
+    adapter,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   })
 

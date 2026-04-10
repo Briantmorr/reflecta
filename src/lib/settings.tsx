@@ -22,6 +22,7 @@ interface SettingsContextValue extends Settings {
   setTheme: (theme: Theme) => void
   toggleLeft: () => void
   toggleRight: () => void
+  openLeft: () => void
   openSettings: () => void
   closeSettings: () => void
 }
@@ -96,6 +97,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setSettings((s) => ({ ...s, leftCollapsed: !s.leftCollapsed }))
   }, [])
 
+  const openLeft = useCallback(() => {
+    setSettings((s) => ({ ...s, leftCollapsed: false }))
+  }, [])
+
   const toggleRight = useCallback(() => {
     setSettings((s) => ({ ...s, rightCollapsed: !s.rightCollapsed }))
   }, [])
@@ -114,10 +119,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       setTheme,
       toggleLeft,
       toggleRight,
+      openLeft,
       openSettings,
       closeSettings,
     }),
-    [settings, setTheme, toggleLeft, toggleRight, openSettings, closeSettings]
+    [settings, setTheme, toggleLeft, toggleRight, openLeft, openSettings, closeSettings]
   )
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
