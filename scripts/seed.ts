@@ -6,7 +6,7 @@
  */
 import { PrismaClient } from '@prisma/client'
 import { mockLLMCall } from '../src/lib/mockLLM'
-import { applyLLMResult, ensureUserNode } from '../src/lib/graph'
+import { applyConversationMap, ensureUserNode } from '../src/lib/graph'
 import { deriveConversationTitle } from '../src/lib/utils'
 
 const prisma = new PrismaClient()
@@ -52,6 +52,7 @@ const SEED_CONVERSATIONS: SeedConversation[] = [
 
 async function main() {
   console.log('🔄 Resetting database…')
+  await prisma.conversationNode.deleteMany()
   await prisma.messageNode.deleteMany()
   await prisma.graphEdge.deleteMany()
   await prisma.graphNode.deleteMany()
@@ -75,12 +76,14 @@ async function main() {
       },
     })
 
-    // Walk through messages, running the mock LLM for each user message
+    // Walk through messages, generating assistant turns.
     let cursor = new Date(createdAt.getTime())
+    const allUserText: string[] = []
     for (const userText of seed.userMessages) {
       cursor = new Date(cursor.getTime() + 30 * 1000) // 30s between messages
+      allUserText.push(userText)
 
-      const userMessage = await prisma.message.create({
+      await prisma.message.create({
         data: {
           conversationId: convo.id,
           role: 'user',
@@ -90,10 +93,9 @@ async function main() {
       })
 
       const llmResult = mockLLMCall(userText)
-      const touchedNodeIds = await applyLLMResult(llmResult, userMessage.id)
 
       cursor = new Date(cursor.getTime() + 15 * 1000)
-      const assistantMessage = await prisma.message.create({
+      await prisma.message.create({
         data: {
           conversationId: convo.id,
           role: 'assistant',
@@ -101,15 +103,10 @@ async function main() {
           createdAt: cursor,
         },
       })
-      if (touchedNodeIds.length > 0) {
-        await prisma.messageNode.createMany({
-          data: touchedNodeIds.map((nodeId) => ({
-            messageId: assistantMessage.id,
-            nodeId,
-          })),
-        })
-      }
     }
+
+    const conversationMap = mockLLMCall(allUserText.join(' '))
+    await applyConversationMap(conversationMap, convo.id)
 
     // Bump conversation updatedAt to match the last message
     await prisma.conversation.update({

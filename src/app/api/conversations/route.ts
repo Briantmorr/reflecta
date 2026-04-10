@@ -17,6 +17,10 @@ export async function GET() {
         title: true,
         createdAt: true,
         updatedAt: true,
+        nodeTags: {
+          include: { node: true },
+          orderBy: { node: { label: 'asc' } },
+        },
         _count: { select: { messages: true } },
       },
     })
@@ -27,6 +31,13 @@ export async function GET() {
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
         messageCount: c._count.messages,
+        tags: c.nodeTags
+          .filter((tag) => tag.node.type !== 'emotion')
+          .map((tag) => ({
+            nodeId: tag.nodeId,
+            label: tag.node.label === 'user' ? 'You' : tag.node.label.replace(/\b\w/g, (s) => s.toUpperCase()),
+            type: tag.node.type,
+          })),
       }))
     )
   } catch (err) {

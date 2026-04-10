@@ -28,9 +28,9 @@ interface SettingsContextValue extends Settings {
 
 const STORAGE_KEY = 'mirror:settings'
 
-// Left pane starts collapsed, right pane starts open, dark theme default.
+// Left pane starts collapsed, right pane starts open, light theme default.
 const DEFAULTS: Settings = {
-  theme: 'dark',
+  theme: 'light',
   leftCollapsed: true,
   rightCollapsed: false,
   settingsOpen: false,
@@ -45,7 +45,7 @@ function readStoredSettings(): Settings {
     if (!raw) return DEFAULTS
     const parsed = JSON.parse(raw) as Partial<Settings>
     return {
-      theme: parsed.theme === 'light' ? 'light' : 'dark',
+      theme: parsed.theme === 'dark' ? 'dark' : 'light',
       leftCollapsed: parsed.leftCollapsed ?? DEFAULTS.leftCollapsed,
       rightCollapsed: parsed.rightCollapsed ?? DEFAULTS.rightCollapsed,
       settingsOpen: false, // never persist modal state

@@ -3,68 +3,17 @@
 @tailwind utilities;
 
 /* ─── Theme tokens ────────────────────────────────────────
- * Dark is the default. Light is opted into via data-theme="light"
+ * Light is the default. Dark is opted into via data-theme="dark"
  * on the <html> element (set by the no-FOUC script in layout.tsx
  * and toggled at runtime by SettingsProvider).
  * ──────────────────────────────────────────────────────── */
 
-:root,
-:root[data-theme='dark'] {
-  /* Surfaces */
-  --mirror-bg: #0f0d0b;
-  --mirror-nav: #141210;
-  --mirror-pane: #181512;
-  --mirror-elevated: #201d19;
-  --mirror-border: #2a2520;
-  --mirror-border-strong: #3a332c;
-
-  /* Text */
-  --mirror-text: #e8e3da;
-  --mirror-secondary: #9c9189;
-  --mirror-muted: #5a5450;
-
-  /* Accent */
-  --mirror-accent: #c9a96e;
-  --mirror-accent-hover: #d4b87a;
-  --mirror-accent-subtle: rgba(201, 169, 110, 0.08);
-  --mirror-accent-dim: rgba(201, 169, 110, 0.18);
-  --mirror-accent-contrast: #0f0d0b;
-
-  /* Graph node palettes (swap with theme for legibility) */
-  --node-user-bg: linear-gradient(135deg, #c9a96e 0%, #a8864f 100%);
-  --node-user-fg: #0f0d0b;
-  --node-user-border: #d4b87a;
-
-  --node-domain-bg: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-  --node-domain-fg: #e8e3da;
-  --node-domain-border: #4a5568;
-
-  --node-person-bg: linear-gradient(135deg, #2b4060 0%, #1a2838 100%);
-  --node-person-fg: #cbd5e0;
-  --node-person-border: #3e5473;
-
-  --node-role-bg: linear-gradient(135deg, #4a3b5f 0%, #2d2438 100%);
-  --node-role-fg: #e9d5ff;
-  --node-role-border: #6b4d85;
-
-  --node-emotion-bg: linear-gradient(135deg, #5a3b3b 0%, #3a2424 100%);
-  --node-emotion-fg: #fecaca;
-  --node-emotion-border: #7f4f4f;
-
-  --node-label-bg: rgba(15, 13, 11, 0.85);
-  --node-edge-stroke: #3d3632;
-  --graph-dot-color: #2a2520;
-  --node-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-
-  /* Modal / overlay */
-  --overlay-bg: rgba(0, 0, 0, 0.55);
-}
-
-:root[data-theme='light'] {
+:root {
   /* Surfaces — warm cream / parchment */
   --mirror-bg: #faf7f0;
   --mirror-nav: #f3eee2;
   --mirror-pane: #fdfbf5;
+  --mirror-surface: #f7f1e4;
   --mirror-elevated: #ede7d6;
   --mirror-border: #e2d9c3;
   --mirror-border-strong: #cdc2a4;
@@ -110,12 +59,63 @@
   --overlay-bg: rgba(42, 37, 32, 0.35);
 }
 
+:root[data-theme='dark'] {
+  /* Surfaces */
+  --mirror-bg: #0f0d0b;
+  --mirror-nav: #141210;
+  --mirror-pane: #181512;
+  --mirror-surface: #1c1916;
+  --mirror-elevated: #201d19;
+  --mirror-border: #2a2520;
+  --mirror-border-strong: #3a332c;
+
+  /* Text */
+  --mirror-text: #e8e3da;
+  --mirror-secondary: #9c9189;
+  --mirror-muted: #5a5450;
+
+  /* Accent */
+  --mirror-accent: #c9a96e;
+  --mirror-accent-hover: #d4b87a;
+  --mirror-accent-subtle: rgba(201, 169, 110, 0.08);
+  --mirror-accent-dim: rgba(201, 169, 110, 0.18);
+  --mirror-accent-contrast: #0f0d0b;
+
+  --node-user-bg: linear-gradient(135deg, #c9a96e 0%, #a8864f 100%);
+  --node-user-fg: #0f0d0b;
+  --node-user-border: #d4b87a;
+
+  --node-domain-bg: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+  --node-domain-fg: #e8e3da;
+  --node-domain-border: #4a5568;
+
+  --node-person-bg: linear-gradient(135deg, #2b4060 0%, #1a2838 100%);
+  --node-person-fg: #cbd5e0;
+  --node-person-border: #3e5473;
+
+  --node-role-bg: linear-gradient(135deg, #4a3b5f 0%, #2d2438 100%);
+  --node-role-fg: #e9d5ff;
+  --node-role-border: #6b4d85;
+
+  --node-emotion-bg: linear-gradient(135deg, #5a3b3b 0%, #3a2424 100%);
+  --node-emotion-fg: #fecaca;
+  --node-emotion-border: #7f4f4f;
+
+  --node-label-bg: rgba(15, 13, 11, 0.85);
+  --node-edge-stroke: #3d3632;
+  --graph-dot-color: #2a2520;
+  --node-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  --overlay-bg: rgba(0, 0, 0, 0.55);
+}
+
 * {
   box-sizing: border-box;
 }
 
 html,
 body {
+  overflow: hidden;
   height: 100%;
   margin: 0;
   padding: 0;
@@ -125,6 +125,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 180ms ease, color 180ms ease;
+}
+
+::selection {
+  background: var(--mirror-accent-dim);
+}
+
+textarea::placeholder {
+  color: var(--mirror-muted);
 }
 
 kbd {
@@ -176,6 +184,11 @@ kbd {
 
 .react-flow__edge-path {
   stroke-linecap: round;
+}
+
+.react-flow__edge-text-wrapper rect {
+  rx: 999px;
+  ry: 999px;
 }
 
 .react-flow__edge-textbg {

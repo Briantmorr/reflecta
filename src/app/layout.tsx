@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { SettingsProvider } from '@/lib/settings'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -12,7 +13,27 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body>{children}</body>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (() => {
+                try {
+                  const raw = localStorage.getItem('mirror:settings')
+                  const parsed = raw ? JSON.parse(raw) : null
+                  const theme = parsed?.theme === 'dark' ? 'dark' : 'light'
+                  document.documentElement.dataset.theme = theme
+                } catch {
+                  document.documentElement.dataset.theme = 'light'
+                }
+              })()
+            `,
+          }}
+        />
+      </head>
+      <body>
+        <SettingsProvider>{children}</SettingsProvider>
+      </body>
     </html>
   )
 }

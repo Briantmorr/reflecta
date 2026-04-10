@@ -14,6 +14,10 @@ export async function GET(_: Request, { params }: Params) {
     const conversation = await prisma.conversation.findUnique({
       where: { id: params.id },
       include: {
+        nodeTags: {
+          include: { node: true },
+          orderBy: { node: { label: 'asc' } },
+        },
         messages: {
           orderBy: { createdAt: 'asc' },
           include: { nodeRefs: { select: { nodeId: true } } },
@@ -24,7 +28,16 @@ export async function GET(_: Request, { params }: Params) {
     if (AUTH_ENABLED && conversation.userId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    return NextResponse.json(conversation)
+    return NextResponse.json({
+      ...conversation,
+      tags: conversation.nodeTags
+        .filter((tag) => tag.node.type !== 'emotion')
+        .map((tag) => ({
+          nodeId: tag.nodeId,
+          label: tag.node.label === 'user' ? 'You' : tag.node.label.replace(/\b\w/g, (s) => s.toUpperCase()),
+          type: tag.node.type,
+        })),
+    })
   } catch (err) {
     console.error('[GET /api/conversations/[id]]', err)
     return NextResponse.json({ error: 'Failed to fetch conversation' }, { status: 500 })

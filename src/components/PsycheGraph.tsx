@@ -15,8 +15,19 @@ import {
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Brain, Users, User as UserIcon, Briefcase, Heart, Activity, type LucideIcon } from 'lucide-react'
+import {
+  Brain,
+  Users,
+  User as UserIcon,
+  Briefcase,
+  Heart,
+  Activity,
+  PanelRightClose,
+  PanelRightOpen,
+  type LucideIcon,
+} from 'lucide-react'
 import { Graph, NodeType } from '@/types'
+import { useSettings } from '@/lib/settings'
 
 interface PsycheGraphProps {
   graph: Graph
@@ -35,17 +46,17 @@ function PsycheNode({ data }: NodeProps) {
   const nodeData = data as PsycheNodeData
   const config = NODE_STYLES[nodeData.type]
   const Icon = config.icon
-  const scale = 1 + Math.min(nodeData.mentionCount * 0.08, 0.6)
+  const scale = 1 + Math.min(nodeData.mentionCount * 0.04, 0.24)
 
   return (
     <>
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
       <div
-        className="flex flex-col items-center gap-1 transition-all"
+        className="flex flex-col items-center gap-1.5 transition-all"
         style={{
           transform: `scale(${scale})`,
           filter: nodeData.highlighted
-            ? 'drop-shadow(0 0 12px var(--mirror-accent))'
+            ? 'drop-shadow(0 12px 24px var(--mirror-accent-subtle))'
             : 'none',
         }}
       >
@@ -55,22 +66,22 @@ function PsycheNode({ data }: NodeProps) {
             width: config.size,
             height: config.size,
             background: config.bg,
-            border: `2px solid ${nodeData.highlighted ? 'var(--mirror-accent)' : config.border}`,
+            border: `1.5px solid ${nodeData.highlighted ? 'var(--mirror-accent)' : config.border}`,
             color: config.fg,
             boxShadow: nodeData.highlighted
-              ? '0 0 0 4px var(--mirror-accent-dim)'
-              : '0 2px 8px rgba(0,0,0,0.3)',
+              ? '0 0 0 6px var(--mirror-accent-subtle)'
+              : 'var(--node-shadow)',
           }}
         >
-          <Icon size={config.iconSize} strokeWidth={2.2} />
+          <Icon size={config.iconSize} strokeWidth={1.9} />
         </div>
         <div
-          className="text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap"
+          className="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-[0.08em]"
           style={{
-            color: 'var(--mirror-text)',
-            background: 'rgba(15, 13, 11, 0.85)',
-            fontSize: '11px',
-            backdropFilter: 'blur(4px)',
+            color: nodeData.highlighted ? 'var(--mirror-accent)' : 'var(--mirror-secondary)',
+            background: 'var(--node-label-bg)',
+            border: '1px solid var(--mirror-border)',
+            backdropFilter: 'blur(10px)',
           }}
         >
           {nodeData.label}
@@ -96,44 +107,44 @@ const NODE_STYLES: Record<
   }
 > = {
   user: {
-    bg: 'linear-gradient(135deg, #c9a96e 0%, #a8864f 100%)',
-    fg: '#0f0d0b',
-    border: '#d4b87a',
+    bg: 'var(--node-user-bg)',
+    fg: 'var(--node-user-fg)',
+    border: 'var(--node-user-border)',
     icon: UserIcon,
-    size: 56,
-    iconSize: 24,
+    size: 44,
+    iconSize: 18,
   },
   domain: {
-    bg: 'linear-gradient(135deg, #2d3748 0%, #1a202c 100%)',
-    fg: '#e8e3da',
-    border: '#4a5568',
+    bg: 'var(--node-domain-bg)',
+    fg: 'var(--node-domain-fg)',
+    border: 'var(--node-domain-border)',
     icon: Brain,
-    size: 44,
-    iconSize: 20,
+    size: 34,
+    iconSize: 15,
   },
   person: {
-    bg: 'linear-gradient(135deg, #2b4060 0%, #1a2838 100%)',
-    fg: '#cbd5e0',
-    border: '#3e5473',
+    bg: 'var(--node-person-bg)',
+    fg: 'var(--node-person-fg)',
+    border: 'var(--node-person-border)',
     icon: Users,
-    size: 40,
-    iconSize: 18,
+    size: 30,
+    iconSize: 14,
   },
   role: {
-    bg: 'linear-gradient(135deg, #4a3b5f 0%, #2d2438 100%)',
-    fg: '#e9d5ff',
-    border: '#6b4d85',
+    bg: 'var(--node-role-bg)',
+    fg: 'var(--node-role-fg)',
+    border: 'var(--node-role-border)',
     icon: Briefcase,
-    size: 40,
-    iconSize: 18,
+    size: 30,
+    iconSize: 14,
   },
   emotion: {
-    bg: 'linear-gradient(135deg, #5a3b3b 0%, #3a2424 100%)',
-    fg: '#fecaca',
-    border: '#7f4f4f',
+    bg: 'var(--node-emotion-bg)',
+    fg: 'var(--node-emotion-fg)',
+    border: 'var(--node-emotion-border)',
     icon: Heart,
-    size: 38,
-    iconSize: 17,
+    size: 28,
+    iconSize: 13,
   },
 }
 
@@ -152,7 +163,7 @@ function computeLayout(graph: Graph) {
   positions.set(userNodeId, { x: 0, y: 0 })
 
   // Place domains in an inner ring
-  const domainRadius = 180
+  const domainRadius = 150
   domainNodes.forEach((d, i) => {
     const angle = (i / Math.max(domainNodes.length, 1)) * Math.PI * 2 - Math.PI / 2
     positions.set(d.id, {
@@ -181,7 +192,7 @@ function computeLayout(graph: Graph) {
   }
 
   // Place children around their domain
-  const childRadius = 110
+  const childRadius = 96
   domainChildren.forEach((childIds, domainId) => {
     const parentPos = positions.get(domainId)
     if (!parentPos || childIds.length === 0) return
@@ -200,7 +211,7 @@ function computeLayout(graph: Graph) {
   })
 
   // Orphans: place in outer ring
-  const orphanRadius = 320
+  const orphanRadius = 250
   orphans.forEach((id, i) => {
     const angle = (i / Math.max(orphans.length, 1)) * Math.PI * 2
     positions.set(id, {
@@ -214,6 +225,7 @@ function computeLayout(graph: Graph) {
 
 // ─── Main component ───────────────────────────────────────
 export default function PsycheGraph({ graph, highlightedNodeIds = [] }: PsycheGraphProps) {
+  const { rightCollapsed, toggleRight } = useSettings()
   const initialNodes = useMemo<FlowNode[]>(() => {
     const positions = computeLayout(graph)
     const highlighted = new Set(highlightedNodeIds)
@@ -239,22 +251,12 @@ export default function PsycheGraph({ graph, highlightedNodeIds = [] }: PsycheGr
         id: e.id,
         source: e.fromId,
         target: e.toId,
-        label: e.relationship.replace(/_/g, ' '),
-        labelStyle: {
-          fill: 'var(--mirror-muted)',
-          fontSize: 9,
-          fontFamily: 'system-ui',
-        },
-        labelBgStyle: {
-          fill: 'var(--mirror-bg)',
-        },
-        labelBgPadding: [4, 2] as [number, number],
         style: {
-          stroke: isHot ? 'var(--mirror-accent)' : '#3d3632',
-          strokeWidth: isHot ? 1.8 : 1,
-          opacity: isHot ? 0.95 : 0.5,
+          stroke: isHot ? 'var(--mirror-accent)' : 'var(--node-edge-stroke)',
+          strokeWidth: isHot ? 1.5 : 0.85,
+          opacity: isHot ? 0.9 : 0.42,
         },
-        animated: isHot,
+        animated: false,
       }
     })
   }, [graph, highlightedNodeIds])
@@ -268,93 +270,169 @@ export default function PsycheGraph({ graph, highlightedNodeIds = [] }: PsycheGr
 
   return (
     <aside
-      className="flex flex-col h-screen overflow-hidden"
+      className="flex h-screen overflow-hidden transition-[width] duration-200"
       style={{
-        width: '420px',
+        width: rightCollapsed ? '72px' : '420px',
         flexShrink: 0,
         background: 'var(--mirror-pane)',
         borderLeft: '1px solid var(--mirror-border)',
       }}
     >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-4 py-4 flex-shrink-0"
-        style={{
-          borderBottom: '1px solid var(--mirror-border)',
-          background: 'var(--mirror-nav)',
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <Activity size={13} style={{ color: 'var(--mirror-accent)' }} />
-          <span
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: 'var(--mirror-text)' }}
-          >
-            Psyche Graph
-          </span>
-        </div>
-        <span className="text-xs" style={{ color: 'var(--mirror-muted)' }}>
-          {graph.nodes.length} nodes · {graph.edges.length} edges
-        </span>
-      </div>
-
-      {/* Graph canvas */}
-      <div className="flex-1 relative">
-        {graph.nodes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-8 gap-3">
+      <div className="flex h-full w-full flex-col">
+        <div
+          className={`flex flex-shrink-0 px-4 py-4 ${rightCollapsed ? 'flex-col items-center gap-2' : 'items-center justify-between'}`}
+          style={{
+            borderBottom: '1px solid var(--mirror-border)',
+            background: 'var(--mirror-nav)',
+          }}
+        >
+          <div className={`flex items-center gap-2 ${rightCollapsed ? 'flex-col' : ''}`}>
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center"
-              style={{ background: 'var(--mirror-elevated)' }}
+              className="flex h-8 w-8 items-center justify-center rounded-full"
+              style={{ background: 'var(--mirror-accent-subtle)' }}
             >
-              <Brain size={20} style={{ color: 'var(--mirror-muted)' }} />
+              <Activity size={13} style={{ color: 'var(--mirror-accent)' }} />
             </div>
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
-              Your psyche graph will build itself here
-              <br />
-              as you share what's on your mind.
-            </p>
+            {!rightCollapsed && (
+              <div>
+                <div
+                  className="text-[11px] font-semibold uppercase tracking-[0.22em]"
+                  style={{ color: 'var(--mirror-secondary)' }}
+                >
+                  Map
+                </div>
+                <span className="text-sm font-semibold" style={{ color: 'var(--mirror-text)' }}>
+                  Psyche graph
+                </span>
+              </div>
+            )}
+          </div>
+          <div className={`flex items-center ${rightCollapsed ? 'flex-col gap-2' : 'gap-3'}`}>
+            {!rightCollapsed && (
+              <div className="flex items-center gap-2">
+                <span
+                  className="rounded-full px-2 py-1 text-[10px] font-medium"
+                  style={{
+                    background: 'var(--mirror-surface)',
+                    color: 'var(--mirror-secondary)',
+                    border: '1px solid var(--mirror-border)',
+                  }}
+                >
+                  {graph.nodes.length} nodes
+                </span>
+                <span
+                  className="rounded-full px-2 py-1 text-[10px] font-medium"
+                  style={{
+                    background: 'var(--mirror-surface)',
+                    color: 'var(--mirror-secondary)',
+                    border: '1px solid var(--mirror-border)',
+                  }}
+                >
+                  {graph.edges.length} links
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={toggleRight}
+              title={rightCollapsed ? 'Expand graph' : 'Collapse graph'}
+              aria-label={rightCollapsed ? 'Expand graph' : 'Collapse graph'}
+              className="mirror-focus-ring flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+              style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
+            >
+              {rightCollapsed ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
+            </button>
+          </div>
+        </div>
+
+        {rightCollapsed ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-2">
+            <div
+              className="flex h-11 w-11 items-center justify-center rounded-2xl"
+              style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
+            >
+              <Brain size={18} />
+            </div>
+            <button
+              type="button"
+              onClick={toggleRight}
+              className="mirror-focus-ring rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors"
+              style={{
+                background: 'var(--mirror-accent-subtle)',
+                color: 'var(--mirror-accent)',
+              }}
+            >
+              Open
+            </button>
           </div>
         ) : (
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
-            proOptions={{ hideAttribution: true }}
-            minZoom={0.3}
-            maxZoom={2}
-            defaultEdgeOptions={{ type: 'default' }}
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={20}
-              size={1}
-              color="#2a2520"
-            />
-            <Controls
+          <>
+            <div
+              className="relative m-3 flex-1 overflow-hidden rounded-[28px]"
               style={{
-                background: 'var(--mirror-elevated)',
+                background:
+                  'radial-gradient(circle at top, var(--mirror-surface), transparent 58%), var(--mirror-pane)',
                 border: '1px solid var(--mirror-border)',
-                borderRadius: '6px',
               }}
-              showInteractive={false}
-            />
-          </ReactFlow>
-        )}
-      </div>
+            >
+              {graph.nodes.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-full"
+                    style={{ background: 'var(--mirror-elevated)' }}
+                  >
+                    <Brain size={20} style={{ color: 'var(--mirror-muted)' }} />
+                  </div>
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
+                    Your psyche graph will build itself here
+                    <br />
+                    as you share what&apos;s on your mind.
+                  </p>
+                </div>
+              ) : (
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  nodeTypes={nodeTypes}
+                  fitView
+                  fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
+                  proOptions={{ hideAttribution: true }}
+                  minZoom={0.3}
+                  maxZoom={2}
+                  defaultEdgeOptions={{ type: 'default' }}
+                >
+                  <Background
+                    variant={BackgroundVariant.Dots}
+                    gap={26}
+                    size={1.2}
+                    color="var(--graph-dot-color)"
+                  />
+                  <Controls
+                    style={{
+                      background: 'var(--mirror-elevated)',
+                      border: '1px solid var(--mirror-border)',
+                      borderRadius: '999px',
+                      overflow: 'hidden',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+                    }}
+                    showInteractive={false}
+                  />
+                </ReactFlow>
+              )}
+            </div>
 
-      {/* Legend */}
-      <div
-        className="flex items-center justify-around px-4 py-3 flex-shrink-0"
-        style={{ borderTop: '1px solid var(--mirror-border)' }}
-      >
-        <LegendItem type="user" label="You" />
-        <LegendItem type="domain" label="Domain" />
-        <LegendItem type="person" label="Person" />
-        <LegendItem type="emotion" label="Emotion" />
+            <div
+              className="flex flex-shrink-0 items-center justify-around px-4 pb-4 pt-1"
+            >
+              <LegendItem type="user" label="You" />
+              <LegendItem type="domain" label="Theme" />
+              <LegendItem type="person" label="Person" />
+              <LegendItem type="role" label="Group" />
+            </div>
+          </>
+        )}
       </div>
     </aside>
   )
@@ -364,20 +442,26 @@ function LegendItem({ type, label }: { type: NodeType; label: string }) {
   const config = NODE_STYLES[type]
   const Icon = config.icon
   return (
-    <div className="flex items-center gap-1.5">
+    <div
+      className="flex items-center gap-1.5 rounded-full px-2 py-1"
+      style={{
+        background: 'var(--mirror-surface)',
+        border: '1px solid var(--mirror-border)',
+      }}
+    >
       <div
         className="flex items-center justify-center rounded-full"
         style={{
-          width: 18,
-          height: 18,
+          width: 16,
+          height: 16,
           background: config.bg,
-          border: `1.5px solid ${config.border}`,
+          border: `1px solid ${config.border}`,
           color: config.fg,
         }}
       >
-        <Icon size={9} strokeWidth={2.5} />
+        <Icon size={8} strokeWidth={2} />
       </div>
-      <span className="text-xs" style={{ color: 'var(--mirror-secondary)', fontSize: '10px' }}>
+      <span className="text-[10px]" style={{ color: 'var(--mirror-secondary)' }}>
         {label}
       </span>
     </div>

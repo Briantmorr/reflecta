@@ -1,270 +1,367 @@
-# Mirror — Technical Specification (V1)
+# Mirror — Technical Specification (Current V1)
 
 ## 1. Overview
 
-Mirror is a three-pane application consisting of:
+Mirror is a three-pane reflective interface:
 
-1. **Conversation History Explorer** (left panel)
-2. **Conversation Interface** (center, primary interaction)
-3. **Psyche Graph View** (right panel, linked to the conversation)
+1. **Conversation History Explorer** on the left
+2. **Conversation Interface** in the center
+3. **Psyche Graph View** on the right
 
-These systems continuously interact:
+The product now separates two distinct LLM jobs:
 
-- **Conversation → Graph**: user messages produce entities/relationships that update the graph
-- **Graph → Conversation**: relevant subgraphs are retrieved to give the LLM context for follow-up questions
+- **Turn response**: GPT-5.4 replies conversationally during the chat
+- **Conversation mapping**: GPT-5.4 tags a completed conversation into a lean life map when the user presses `Update map`
+
+This keeps the graph intentional instead of mutating on every message.
 
 ---
 
-## 2. System Architecture
+## 2. Product Principles
+
+- The graph should feel like an awakening map, not a noisy dump of extracted nouns.
+- The map should stay lean and hierarchical.
+- Emotions may matter conversationally, but they are not shown as graph nodes in the current UI.
+- Conversation tags are explicit, editable, and stored per conversation.
+- Tier-one nodes are fixed and only appear when real child structure exists beneath them.
+
+---
+
+## 3. System Architecture
 
 ### High-Level Flow
 
 ```
 User Input
     ↓
-LLM Processing (OpenAI GPT-5.4)
+GPT-5.4 Turn Response
     ↓
-Structured Extraction (entities + relationships)
+Conversation continues
     ↓
-Graph Update Engine
+User clicks "Update map"
     ↓
-Graph Store (in-memory + persisted)
+GPT-5.4 Conversation Tagger
     ↓
-Context Retrieval
+Conversation Tags + Supporting Graph Structure
     ↓
-LLM Follow-up Response
+Graph Re-render
 ```
+
+### Current Responsibilities Split
+
+**Conversation turn model**
+- Respond in natural language
+- Use recent conversation plus current graph as context
+- Does not directly mutate visible graph structure
+
+**Conversation tagging model**
+- Digest the full conversation transcript
+- Reuse existing nodes when possible
+- Produce 1-6 durable tags minimum 1
+- Build a minimal hierarchy
+- Avoid node bloat
 
 ---
 
-## 3. Core Components
+## 4. Core Components
 
-### 3.1 Conversation Engine
+### 4.1 Conversation Engine
 
 **Responsibilities**
-- Manage chat session
-- Send/receive messages from LLM
-- Maintain conversational context
+- Manage sessions
+- Persist user and assistant turns
+- Call GPT-5.4 for live reflective replies
 
 **Inputs**
 - User messages
-- Retrieved graph context
+- Relevant graph context
 
 **Outputs**
-- LLM response
-- Structured extraction payload (JSON)
+- Assistant reply text
+
+### 4.2 Conversation Tagging Engine
+
+**Responsibilities**
+- Process an entire conversation on demand
+- Select a small set of durable life-map nodes
+- Create or reuse supporting hierarchy
+- Persist conversation-level tags
+
+**Rules**
+- Every conversation should have at least 1 tag
+- Prefer concrete names over generic placeholders
+- Prefer structures like `Work -> Coworkers -> Jen`
+- Avoid emotional nodes in graph output
+- Avoid over-creating nodes
+
+### 4.3 Graph Engine
+
+**Responsibilities**
+- Maintain reusable graph nodes and edges
+- Keep graph display minimal and hierarchical
+- Derive visible graph from persisted conversation tags
+
+**Tier-One Domains**
+- `Family`
+- `Relationships`
+- `Work`
+- `Health`
+- `Hobbies`
+
+**Display Rules**
+- Tier-one domains only render if they have visible children
+- `You` only connects to first-ring container nodes
+- Leaf people should hang off containers like `Family` or `Coworkers`
+- Emotions are excluded from the visible graph
+- Edge labels are hidden in the UI
+
+### 4.4 Context Retrieval Layer
+
+**Responsibilities**
+- Retrieve relevant graph nodes and edges for turn-time prompting
+- Bias toward recent and matching nodes
+
+**Current Strategy**
+- Simple scoring by keyword overlap, recent references, and mention weight
+
+### 4.5 Conversation History Explorer
+
+**Responsibilities**
+- List previous conversations
+- Allow switching between sessions
+- Collapse into a minimal rail
+
+**Collapsed Behavior**
+- Conversation history is hidden
+- Only shell controls remain visible
 
 ---
 
-### 3.2 Graph Engine
+## 5. Data Model
 
-**Responsibilities**
-- Maintain the evolving user graph
-- Normalize entities (e.g., "Dad" vs "Father")
-- Create/update nodes and edges
+### Domain Types
 
-**Graph Model**
+```ts
+type NodeType = 'user' | 'person' | 'role' | 'domain' | 'emotion'
+```
+
+### Graph Model
 
 ```ts
 type Node = {
   id: string
   label: string
-  type: 'person' | 'role' | 'domain' | 'emotion' | 'user'
+  type: 'user' | 'person' | 'role' | 'domain' | 'emotion'
 }
 
 type Edge = {
-  from: string   // Node id
-  to: string     // Node id
+  from: string
+  to: string
   relationship: string
 }
 ```
 
-**Examples**
-- `User → Family → Father`
-- `User → Work → Job → Coworker`
+### Conversation Tags
 
----
+Each conversation stores its own selected graph tags.
 
-### 3.3 Context Retrieval Layer
-
-**Responsibilities**
-- Retrieve relevant nodes / subgraphs
-- Inject them into the LLM prompt
-
-**V1 Strategy**
-- Simple keyword / entity matching
-- Return top-N related nodes
-
----
-
-### 3.4 Conversation History Explorer
-
-**Location**: Left panel
-
-**Responsibilities**
-- List previous conversations
-- Allow switching between sessions
-
-**Storage**: SQLite
-
-**Schema**
-
-```sql
-conversations (
-  id         TEXT PRIMARY KEY,
-  title      TEXT,
-  created_at TIMESTAMP
-)
-
-messages (
-  id              TEXT PRIMARY KEY,
-  conversation_id TEXT,
-  role            TEXT,       -- 'user' | 'assistant' | 'system'
-  content         TEXT,
-  created_at      TIMESTAMP
-)
+```ts
+type ConversationTag = {
+  nodeId: string
+  label: string
+  type: 'person' | 'role' | 'domain'
+}
 ```
 
+### Persistence Tables
+
+Current SQLite persistence includes:
+
+- `Conversation`
+- `Message`
+- `GraphNode`
+- `GraphEdge`
+- `MessageNode`
+- `ConversationNode`
+
+`ConversationNode` is the key join table for the current visible graph model.
+
 ---
 
-## 4. Frontend Architecture
+## 6. Frontend Architecture
 
 ### Layout
 
 ```
 ┌─────────────────┬──────────────────────┬─────────────────┐
-│  Conversations  │       Dialogue       │  Dynamic Graph  │
-│   (left panel)  │     (main chat)      │  (right panel)  │
+│  Conversations  │       Dialogue       │  Psyche Graph   │
+│   (collapsible) │   (primary surface)  │  (collapsible)  │
 └─────────────────┴──────────────────────┴─────────────────┘
 ```
 
-### Components
+### UX Behavior
 
-**4.1 Conversation UI**
-- Chat interface (LLM + user turns)
-- Streaming responses
-- Input box
+**Conversation UI**
+- Light mode is the default
+- Settings modal controls theme and panel collapse
+- Conversation tags show at the top of the active conversation
+- Tags can be manually removed
+- `Update map` button appears at the bottom of the conversation pane
 
-**4.2 Graph View**
-- Visualization using React Flow
-- Incremental node updates
-- Centered on the "User" node
+**Graph UI**
+- Minimal React Flow visualization
+- No edge labels
+- No emotion nodes
+- Tier-one hierarchy only
+- Graph re-renders immediately after tag updates or tag removals
 
-**4.3 History Explorer**
-- List of conversations
-- Click to load a session
+**History Explorer**
+- Collapsed by default
+- Hidden history when collapsed
 
 ---
 
-## 5. LLM Integration
+## 7. LLM Integration
 
 | Property | Value |
 |---|---|
 | Provider | OpenAI |
 | Model | GPT-5.4 |
-| Responsibilities | Respond conversationally, extract structured data |
+| API | Responses API |
+| Env Var | `OPENAI_API_KEY` |
 
-### Expected Output Format
+### Turn Response Contract
 
 ```json
 {
   "response": "LLM reply text",
+  "entities": [],
+  "relationships": []
+}
+```
+
+Turn-time extraction exists for prompt compatibility, but visible graph updates are not driven from each turn.
+
+### Conversation Tagging Contract
+
+```json
+{
+  "response": "Internal helper text",
   "entities": [
-    { "name": "Dad", "type": "person" }
+    { "name": "Work", "type": "domain" },
+    { "name": "Coworkers", "type": "role" },
+    { "name": "Jen", "type": "person" }
   ],
   "relationships": [
-    { "from": "User", "to": "Dad", "type": "child_of" }
+    { "from": "User", "to": "Work", "type": "has_domain" },
+    { "from": "Coworkers", "to": "Work", "type": "part_of" },
+    { "from": "Jen", "to": "Coworkers", "type": "member_of" }
   ]
 }
 ```
 
-> **V1 demo note**: a mock LLM in `src/lib/mockLLM.ts` implements this exact signature so the app runs end-to-end without API calls. Swapping it for the real OpenAI client is a one-line change.
+### Prompting Constraints
+
+- Reuse existing nodes whenever possible
+- Keep tags lean
+- Do not expose emotion nodes in the graph
+- Favor named people over generic person labels
+- Use group nodes like `Coworkers`, `Parents`, `Siblings`, `Clients` when structure is useful
 
 ---
 
-## 6. Entry Point Logic
+## 8. Entry Point Logic
 
-On new conversation:
+On a new conversation:
 
-1. System initiates onboarding prompts
-2. LLM guides through 3–5 seed questions
-3. Responses populate the initial graph
+1. Create an empty conversation
+2. Show onboarding guidance if the conversation has no messages
+3. User and assistant exchange turns normally
+4. When the user wants to map the conversation, they press `Update map`
+5. GPT-5.4 tags the conversation
+6. Tags persist and the graph updates immediately
 
 ---
 
-## 7. Persistence Strategy
+## 9. Persistence Strategy
 
-### V1
-- Conversations → SQLite
-- Graph → SQLite (Node / Edge / MessageNode tables)
+### Current V1
+
+- Conversations and messages are stored in SQLite
+- Graph nodes and edges are stored in SQLite
+- Conversation-level tags are stored in `ConversationNode`
+- Visible graph is derived from tagged conversations plus supporting hierarchy
 
 ### Future
-- Graph migrated to Postgres or a dedicated graph DB
+
+- Per-user graph isolation
 - Embedding-based retrieval
+- More robust node normalization and merge tools
+- Explicit graph editing tools
 
 ---
 
-## 8. CI/CD Pipeline
+## 10. API Surface
 
-### Workflow
-- Git provider: GitHub
-- Merge to `main` → triggers Vercel deployment
-- PRs get automatic preview deployments
+### Current Routes
 
-### Vercel Setup
-- Framework: Next.js
-- Required env vars: `OPENAI_API_KEY`, `DATABASE_URL`
+- `GET /api/conversations`
+- `POST /api/conversations`
+- `GET /api/conversations/[id]`
+- `DELETE /api/conversations/[id]`
+- `GET /api/conversations/[id]/messages`
+- `POST /api/conversations/[id]/messages`
+- `POST /api/conversations/[id]/tags`
+- `DELETE /api/conversations/[id]/tags`
+- `GET /api/graph`
 
----
+### Behavioral Notes
 
-## 9. Non-Functional Requirements
-
-- Low latency: <2–3s LLM response target
-- Incremental graph updates
-- Stateless frontend (session-based)
-
----
-
-## 10. Open Questions
-
-- Graph normalization strategy?
-- Memory weighting of nodes?
-- Should the graph be user-editable?
-- Long-term storage strategy?
+- Posting a message does not directly light up the graph
+- Posting to `/tags` performs the explicit conversation mapping pass
+- Deleting a tag updates both the conversation header and the graph
 
 ---
 
-## 11. Future Enhancements
+## 11. Non-Functional Requirements
 
-- Graph persistence layer
-- Embedding-based retrieval
-- Insight generation (weekly summaries)
-- Multi-session aggregation
-- Visual "value map" overlays
-- **External Note Ingestion** — import notes/conversations as flattened, timestamped events that integrate into history
-- **Timeline View for Nodes** — chronological sequence of all conversations where a given entity was referenced
+- GPT response target: low-latency turn responses
+- Graph should remain visually sparse and readable
+- Node growth should be constrained
+- UI should feel clean, modern, and minimal
+- Theme changes should avoid FOUC
 
 ---
 
-## 12. Technical Opinions
+## 12. Open Questions
 
-- Next.js for unified frontend + backend
-- SQLite for fast iteration
-- GPT-5.4 for reasoning + extraction
-- Keep graph logic server-side
-- Optimize later with embeddings + vector DB
+- How should person-name detection be improved to avoid generic placeholders?
+- Should users be able to rename or merge nodes manually?
+- When should stale or low-value nodes be pruned?
+- How should per-user graph isolation be introduced?
+
+---
+
+## 13. Technical Opinions
+
+- Next.js remains the correct app shell for combined UI and API work
+- SQLite is still appropriate for fast local iteration
+- GPT-5.4 is the right model for both reflective replies and lean tagging
+- Graph logic should remain server-side
+- Visible map structure should be opinionated, not fully model-driven
 
 ---
 
 ## Summary
 
-Mirror is an evolving system where:
+Mirror is now a two-stage reflective system:
 
-- **Conversation builds structure**
-- **Structure improves conversation**
+- **Conversation builds meaning**
+- **Explicit tagging builds structure**
 
-The architecture prioritizes:
+The current architecture favors:
 
-- Fast iteration
-- Clear data flow
-- Extensibility toward deeper insight systems
+- A lean life map over exhaustive extraction
+- User-visible control over what enters the map
+- Clear hierarchy anchored by a fixed first ring
+- A minimal UI that makes the graph feel earned

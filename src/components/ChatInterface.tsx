@@ -1,25 +1,33 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react'
-import { Send, Loader2, MessageCircle, Sparkles } from 'lucide-react'
-import { Message, Conversation } from '@/types'
+import { Send, Loader2, MessageCircle, Settings2, Sparkles, RefreshCw, X } from 'lucide-react'
+import { Message, Conversation, ConversationTag } from '@/types'
+import { useSettings } from '@/lib/settings'
 
 interface ChatInterfaceProps {
   conversation: Conversation | null
   onboardingPrompt: string | null
   onSendMessage: (content: string) => Promise<void>
+  onUpdateTags: () => Promise<void>
+  onRemoveTag: (nodeId: string) => Promise<void>
   isSending: boolean
+  isUpdatingTags: boolean
 }
 
 export default function ChatInterface({
   conversation,
   onboardingPrompt,
   onSendMessage,
+  onUpdateTags,
+  onRemoveTag,
   isSending,
+  isUpdatingTags,
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { openSettings } = useSettings()
 
   const messages = conversation?.messages ?? []
 
@@ -60,12 +68,24 @@ export default function ChatInterface({
   if (!conversation) {
     return (
       <div
-        className="flex flex-col items-center justify-center flex-1 h-screen"
+        className="relative flex h-screen flex-1 flex-col items-center justify-center"
         style={{ background: 'var(--mirror-pane)' }}
       >
+        <button
+          type="button"
+          onClick={openSettings}
+          className="mirror-focus-ring absolute right-6 top-6 flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+          style={{
+            background: 'var(--mirror-elevated)',
+            color: 'var(--mirror-secondary)',
+          }}
+          aria-label="Open settings"
+        >
+          <Settings2 size={16} />
+        </button>
         <div className="text-center space-y-4 max-w-md px-8">
           <div
-            className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
+            className="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
             style={{ background: 'var(--mirror-elevated)' }}
           >
             <MessageCircle size={22} style={{ color: 'var(--mirror-muted)' }} />
@@ -86,37 +106,77 @@ export default function ChatInterface({
 
   return (
     <div
-      className="flex flex-col flex-1 h-screen overflow-hidden"
+      className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden"
       style={{ background: 'var(--mirror-pane)' }}
     >
-      {/* Header */}
       <div
-        className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+        className="flex flex-shrink-0 items-center justify-between px-8 py-6"
         style={{
           borderBottom: '1px solid var(--mirror-border)',
-          background: 'var(--mirror-nav)',
+          background:
+            'linear-gradient(180deg, color-mix(in srgb, var(--mirror-nav) 92%, transparent), var(--mirror-pane))',
         }}
       >
         <div>
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--mirror-text)' }}>
+          <div
+            className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em]"
+            style={{ color: 'var(--mirror-secondary)' }}
+          >
+            Active reflection
+          </div>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--mirror-text)' }}>
             {conversation.title ?? 'New Conversation'}
           </h2>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--mirror-muted)' }}>
+          <p className="mt-1 text-xs" style={{ color: 'var(--mirror-muted)' }}>
             {messages.length} {messages.length === 1 ? 'message' : 'messages'}
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(conversation.tags ?? []).map((tag) => (
+              <ConversationTagPill
+                key={tag.nodeId}
+                tag={tag}
+                onRemove={onRemoveTag}
+              />
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Sparkles size={11} style={{ color: 'var(--mirror-accent)' }} />
-          <span className="text-xs" style={{ color: 'var(--mirror-secondary)' }}>
-            Guided reflection
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-1.5 sm:flex">
+            <Sparkles size={11} style={{ color: 'var(--mirror-accent)' }} />
+            <span className="text-xs" style={{ color: 'var(--mirror-secondary)' }}>
+              Guided reflection
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={openSettings}
+            className="mirror-focus-ring flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+            style={{
+              background: 'var(--mirror-elevated)',
+              color: 'var(--mirror-secondary)',
+            }}
+            aria-label="Open settings"
+          >
+            <Settings2 size={16} />
+          </button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-2xl mx-auto space-y-6">
-          {/* Onboarding prompt (shown when conversation is empty) */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+        <div className="mx-auto flex max-w-3xl flex-col gap-6">
+          <div className="rounded-[28px] border px-5 py-4 sm:px-6" style={{
+            background: 'var(--mirror-surface)',
+            borderColor: 'var(--mirror-border)',
+          }}>
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'var(--mirror-secondary)' }}>
+              <Sparkles size={11} style={{ color: 'var(--mirror-accent)' }} />
+              Guided reflection
+            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--mirror-secondary)' }}>
+              Keep the conversation concrete. When you are ready, update the map to tag the note with a small set of durable life nodes.
+            </p>
+          </div>
+
           {messages.length === 0 && onboardingPrompt && (
             <MessageBubble role="assistant" content={onboardingPrompt} isOnboarding />
           )}
@@ -136,60 +196,82 @@ export default function ChatInterface({
         </div>
       </div>
 
-      {/* Input */}
       <div
-        className="flex-shrink-0 px-6 py-4"
+        className="flex-shrink-0 px-6 pb-6 pt-4 sm:px-8"
         style={{
           borderTop: '1px solid var(--mirror-border)',
-          background: 'var(--mirror-nav)',
+          background:
+            'linear-gradient(180deg, color-mix(in srgb, var(--mirror-pane) 70%, transparent), var(--mirror-nav))',
         }}
       >
         <div
-          className="max-w-2xl mx-auto flex items-end gap-3 rounded-xl px-4 py-3"
+          className="mx-auto max-w-3xl rounded-[28px] border p-3 shadow-sm"
           style={{
-            background: 'var(--mirror-elevated)',
-            border: '1px solid var(--mirror-border)',
+            background: 'var(--mirror-surface)',
+            borderColor: 'var(--mirror-border)',
           }}
         >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Share what's on your mind…"
-            rows={1}
-            disabled={isSending}
-            className="flex-1 resize-none bg-transparent outline-none text-sm leading-relaxed"
-            style={{
-              color: 'var(--mirror-text)',
-              caretColor: 'var(--mirror-accent)',
-              minHeight: '22px',
-              maxHeight: '160px',
-            }}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isSending}
-            className="flex items-center justify-center rounded-lg transition-all flex-shrink-0"
-            style={{
-              width: '32px',
-              height: '32px',
-              background:
-                !input.trim() || isSending ? 'var(--mirror-border)' : 'var(--mirror-accent)',
-              color: !input.trim() || isSending ? 'var(--mirror-muted)' : '#0f0d0b',
-              cursor: !input.trim() || isSending ? 'not-allowed' : 'pointer',
-            }}
+          <div className="mb-3 flex items-center justify-between px-2">
+            <button
+              type="button"
+              onClick={onUpdateTags}
+              disabled={isUpdatingTags || messages.length === 0}
+              className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-medium transition-colors"
+              style={{
+                background:
+                  isUpdatingTags || messages.length === 0
+                    ? 'var(--mirror-elevated)'
+                    : 'var(--mirror-accent-subtle)',
+                color:
+                  isUpdatingTags || messages.length === 0
+                    ? 'var(--mirror-muted)'
+                    : 'var(--mirror-accent)',
+                cursor:
+                  isUpdatingTags || messages.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <RefreshCw size={12} className={isUpdatingTags ? 'animate-spin' : ''} />
+              {isUpdatingTags ? 'Updating map' : 'Update map'}
+            </button>
+          </div>
+          <div className="flex items-end gap-3 rounded-3xl px-3 py-2" style={{ background: 'var(--mirror-elevated)' }}>
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Share what feels most alive right now."
+              rows={1}
+              disabled={isSending}
+              className="flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none"
+              style={{
+                color: 'var(--mirror-text)',
+                caretColor: 'var(--mirror-accent)',
+                minHeight: '22px',
+                maxHeight: '160px',
+              }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isSending}
+              className="mirror-focus-ring flex h-11 w-11 items-center justify-center rounded-full transition-all"
+              style={{
+                background:
+                  !input.trim() || isSending ? 'var(--mirror-border)' : 'var(--mirror-accent)',
+                color: !input.trim() || isSending ? 'var(--mirror-muted)' : 'var(--mirror-accent-contrast)',
+                cursor: !input.trim() || isSending ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <Send size={14} />
+            </button>
+          </div>
+          <p
+            className="px-3 pt-3 text-center text-[11px]"
+            style={{ color: 'var(--mirror-muted)' }}
           >
-            <Send size={13} />
-          </button>
+            Press <kbd>Enter</kbd> to send. Use <kbd>Shift+Enter</kbd> for a new line.
+          </p>
         </div>
-        <p
-          className="text-xs mt-2 text-center"
-          style={{ color: 'var(--mirror-muted)', fontSize: '10px' }}
-        >
-          Press <kbd style={{ fontFamily: 'monospace' }}>Enter</kbd> to send ·{' '}
-          <kbd style={{ fontFamily: 'monospace' }}>Shift+Enter</kbd> for newline
-        </p>
       </div>
     </div>
   )
@@ -208,14 +290,18 @@ function MessageBubble({ role, content, isOnboarding }: MessageBubbleProps) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className="max-w-[85%] rounded-2xl px-4 py-3"
+        className="max-w-[85%] rounded-[26px] border px-4 py-3 sm:px-5"
         style={{
           background: isUser
-            ? 'var(--mirror-accent-dim)'
+            ? 'var(--mirror-accent-subtle)'
             : isOnboarding
-            ? 'transparent'
-            : 'var(--mirror-elevated)',
-          border: isOnboarding ? '1px dashed var(--mirror-border)' : 'none',
+              ? 'transparent'
+              : 'var(--mirror-surface)',
+          border: isOnboarding
+            ? '1px dashed var(--mirror-border)'
+            : isUser
+              ? '1px solid var(--mirror-accent-dim)'
+              : '1px solid var(--mirror-border)',
           color: 'var(--mirror-text)',
         }}
       >
@@ -238,5 +324,37 @@ function MessageBubble({ role, content, isOnboarding }: MessageBubbleProps) {
         </p>
       </div>
     </div>
+  )
+}
+
+function ConversationTagPill({
+  tag,
+  onRemove,
+}: {
+  tag: ConversationTag
+  onRemove: (nodeId: string) => Promise<void>
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs"
+      style={{
+        borderColor: 'var(--mirror-border)',
+        background: 'color-mix(in srgb, var(--mirror-surface) 72%, transparent)',
+        color: 'color-mix(in srgb, var(--mirror-secondary) 78%, transparent)',
+        backdropFilter: 'blur(8px)',
+        opacity: 0.82,
+      }}
+    >
+      <span>{tag.label}</span>
+      <button
+        type="button"
+        onClick={() => void onRemove(tag.nodeId)}
+        className="mirror-focus-ring flex h-4 w-4 items-center justify-center rounded-full"
+        style={{ color: 'color-mix(in srgb, var(--mirror-muted) 82%, transparent)' }}
+        aria-label={`Remove ${tag.label} tag`}
+      >
+        <X size={11} />
+      </button>
+    </span>
   )
 }

@@ -9,6 +9,7 @@ export interface Conversation {
   createdAt: string
   updatedAt: string
   messages?: Message[]
+  tags?: ConversationTag[]
 }
 
 export interface ConversationListItem {
@@ -17,6 +18,13 @@ export interface ConversationListItem {
   createdAt: string
   updatedAt: string
   messageCount?: number
+  tags?: ConversationTag[]
+}
+
+export interface ConversationTag {
+  nodeId: string
+  label: string
+  type: NodeType
 }
 
 export interface Message {

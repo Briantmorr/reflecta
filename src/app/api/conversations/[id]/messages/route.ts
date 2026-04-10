@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { mockLLMCall, onboardingPrompt } from '@/lib/mockLLM'
-import { applyLLMResult, getFullGraph } from '@/lib/graph'
+import { onboardingPrompt } from '@/lib/mockLLM'
+import { getFullGraph } from '@/lib/graph'
+import { generateConversationTurn } from '@/lib/llm'
 import { deriveConversationTitle } from '@/lib/utils'
 import { AUTH_ENABLED, currentUserId } from '@/lib/auth'
+import { Message } from '@/types'
 
 type Params = { params: { id: string } }
 
 /**
  * Post a user message. Flow:
  *  1. Persist user message
- *  2. Run (mock) LLM → extract entities + relationships
- *  3. Update graph + tag user message with touched nodes
- *  4. Persist assistant response, also tagged with touched nodes
- *  5. Return both messages + the updated graph so the client can re-render
+ *  2. Run the conversation LLM turn → reply text only
+ *  3. Persist assistant response
+ *  4. Return both messages + current graph so the client can re-render
  */
 export async function POST(request: Request, { params }: Params) {
   try {
@@ -29,7 +30,13 @@ export async function POST(request: Request, { params }: Params) {
 
     const conversation = await prisma.conversation.findUnique({
       where: { id: params.id },
-      include: { _count: { select: { messages: true } } },
+      include: {
+        _count: { select: { messages: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: { nodeRefs: { select: { nodeId: true } } },
+        },
+      },
     })
     if (!conversation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (AUTH_ENABLED && conversation.userId !== userId) {
@@ -41,21 +48,26 @@ export async function POST(request: Request, { params }: Params) {
       data: { conversationId: params.id, role: 'user', content },
     })
 
-    // 2. Mock LLM
-    const llmResult = mockLLMCall(content)
+    // 2. LLM turn with conversation + graph context
+    const currentGraph = await getFullGraph()
+    const conversationMessages: Message[] = conversation.messages.map((message) => ({
+      id: message.id,
+      conversationId: message.conversationId,
+      role: message.role as Message['role'],
+      content: message.content,
+      createdAt: message.createdAt.toISOString(),
+      nodeRefs: message.nodeRefs,
+    }))
+    const llmResult = await generateConversationTurn({
+      userMessage: content,
+      conversationMessages,
+      graph: currentGraph,
+    })
 
-    // 3. Update graph + tag user message
-    const touchedNodeIds = await applyLLMResult(llmResult, userMessage.id)
-
-    // 4. Persist assistant message, tagged with the same nodes
+    // 3. Persist assistant message
     const assistantMessage = await prisma.message.create({
       data: { conversationId: params.id, role: 'assistant', content: llmResult.response },
     })
-    if (touchedNodeIds.length > 0) {
-      await prisma.messageNode.createMany({
-        data: touchedNodeIds.map((nodeId) => ({ messageId: assistantMessage.id, nodeId })),
-      })
-    }
 
     // If this was the first exchange, derive a title for the conversation
     if (conversation._count.messages === 0 && !conversation.title) {
@@ -77,7 +89,7 @@ export async function POST(request: Request, { params }: Params) {
       userMessage,
       assistantMessage,
       graph,
-      touchedNodeIds,
+      touchedNodeIds: [],
     })
   } catch (err) {
     console.error('[POST /api/conversations/[id]/messages]', err)
