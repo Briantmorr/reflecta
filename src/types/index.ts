@@ -58,10 +58,14 @@ export interface Graph {
   edges: GraphEdge[]
 }
 
-export interface NodeView {
+export interface NodeViewNode {
   nodeId: string
   label: string
   type: NodeType
+}
+
+export interface NodeView {
+  nodes: NodeViewNode[]
 }
 
 // ─── LLM contract ─────────────────────────────────────────────

@@ -38,6 +38,12 @@ export default function ConversationList({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [nodeConversationsOpen, setNodeConversationsOpen] = useState(false)
   const { leftCollapsed, toggleLeft } = useSettings()
+  const selectedNodes = nodeView?.nodes ?? []
+  const selectedNonUserNodes = selectedNodes.filter((node) => node.type !== 'user')
+  const selectedLabel = selectedNodes.length > 0
+    ? selectedNodes.map((node) => node.label).join(' + ')
+    : 'You'
+  const isAllConversationsView = selectedNonUserNodes.length === 0
 
   const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -176,10 +182,10 @@ export default function ConversationList({
                           boxShadow: nodeView ? '0 8px 20px var(--mirror-accent-subtle)' : 'none',
                         }}
                       >
-                        {nodeView?.label ?? 'You'}
+                        {selectedLabel}
                       </span>
                       <span className="text-xs" style={{ color: 'var(--mirror-muted)' }}>
-                        {nodeView?.type === 'user' || !nodeView ? 'All conversations' : 'Matching notes only'}
+                        {isAllConversationsView ? 'All conversations' : 'Matching notes only'}
                       </span>
                     </div>
                   </div>
@@ -229,9 +235,9 @@ export default function ConversationList({
                         color: 'var(--mirror-muted)',
                       }}
                     >
-                      {nodeView?.type === 'user'
+                      {isAllConversationsView
                         ? 'No conversations yet.'
-                        : `No conversations are tagged with ${nodeView?.label ?? 'this node'} yet.`}
+                        : `No conversations are tagged with ${selectedLabel} yet.`}
                     </div>
                   ) : (
                     <ul className="space-y-1">

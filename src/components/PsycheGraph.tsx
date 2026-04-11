@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
   Controls,
   Node as FlowNode,
   Edge as FlowEdge,
+  ReactFlowInstance,
   useNodesState,
   useEdgesState,
   Position,
@@ -25,12 +26,13 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { Graph, NodeType } from '@/types'
+import { useSettings } from '@/lib/settings'
 
 interface PsycheGraphProps {
   graph: Graph
   highlightedNodeIds?: string[]
-  selectedNodeId?: string | null
-  onSelectNode?: (nodeId: string | null) => void
+  selectedNodeIds?: string[]
+  onSelectNode?: (nodeId: string | null, options?: { additive?: boolean }) => void
   layout?: 'side' | 'primary'
 }
 
@@ -142,6 +144,8 @@ function PsycheNode({ data }: NodeProps) {
 }
 
 const nodeTypes = { psyche: PsycheNode }
+const PRIMARY_FIT_VIEW_OPTIONS = { padding: 0.08, maxZoom: 1.45 }
+const SIDE_FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.45 }
 
 const DOMAIN_LAYOUT_ORDER = ['Self', 'Health', 'Work', 'Relationships', 'Hobbies', 'Lifestyle']
 const HEX_DIRECTIONS = [
@@ -221,7 +225,7 @@ function computeLayout(graph: Graph) {
 
   positions.set(userNodeId, { x: 0, y: 0 })
 
-  const domainRadius = 176
+  const domainRadius = 206
   if (domainNodes.length === 6) {
     domainNodes.forEach((domainNode, index) => {
       const dir = HEX_DIRECTIONS[index] ?? HEX_DIRECTIONS[0]
@@ -300,8 +304,8 @@ function computeLayout(graph: Graph) {
     if (!parentPos || !parentNode) return
 
     const directions = getSortedDirections(parentPos)
-    const step = parentNode.type === 'domain' ? 92 : 72
-    const ringGap = parentNode.type === 'domain' ? 50 : 40
+    const step = parentNode.type === 'domain' ? 108 : 78
+    const ringGap = parentNode.type === 'domain' ? 58 : 44
 
     childIds.forEach((childId, index) => {
       const ring = Math.floor(index / directions.length)
@@ -325,7 +329,7 @@ function computeLayout(graph: Graph) {
     .map((node) => node.id)
     .filter((nodeId) => !positions.has(nodeId))
 
-  const orphanRadius = 294
+  const orphanRadius = 336
   orphanIds.forEach((id, index) => {
     const direction = HEX_DIRECTIONS[index % HEX_DIRECTIONS.length] ?? HEX_DIRECTIONS[0]
     const ring = Math.floor(index / HEX_DIRECTIONS.length)
@@ -343,14 +347,17 @@ function computeLayout(graph: Graph) {
 export default function PsycheGraph({
   graph,
   highlightedNodeIds = [],
-  selectedNodeId = null,
+  selectedNodeIds = [],
   onSelectNode,
   layout = 'side',
 }: PsycheGraphProps) {
+  const { leftCollapsed, rightCollapsed } = useSettings()
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+  const flowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const initialNodes = useMemo<FlowNode[]>(() => {
     const positions = computeLayout(graph)
-    const highlighted = new Set([...highlightedNodeIds, ...(selectedNodeId ? [selectedNodeId] : [])])
+    const selected = new Set(selectedNodeIds)
+    const highlighted = new Set([...highlightedNodeIds, ...selectedNodeIds])
 
     return graph.nodes.map((n) => ({
       id: n.id,
@@ -361,12 +368,12 @@ export default function PsycheGraph({
         type: n.type,
         mentionCount: n.mentionCount,
         highlighted: highlighted.has(n.id),
-        selected: selectedNodeId === n.id,
+        selected: selected.has(n.id),
         dormant: Boolean(n.dormant),
         question: n.question,
       } satisfies PsycheNodeData,
     }))
-  }, [graph, highlightedNodeIds, selectedNodeId])
+  }, [graph, highlightedNodeIds, selectedNodeIds])
 
   const initialEdges = useMemo<FlowEdge[]>(() => {
     const highlighted = new Set(highlightedNodeIds)
@@ -385,8 +392,8 @@ export default function PsycheGraph({
         style: {
           stroke:
             isHot || isHovered ? 'var(--mirror-accent)' : 'var(--node-edge-stroke)',
-          strokeWidth: isHot ? 2 : isHovered ? 1.65 : isDormantEdge ? 0.95 : 1.15,
-          opacity: isHot ? 0.92 : isHovered ? 0.74 : isDormantEdge ? 0.2 : 0.44,
+          strokeWidth: isHot ? 2.25 : isHovered ? 1.9 : isDormantEdge ? 1.1 : 1.35,
+          opacity: isHot ? 0.96 : isHovered ? 0.8 : isDormantEdge ? 0.28 : 0.56,
         },
         animated: false,
       }
@@ -399,6 +406,23 @@ export default function PsycheGraph({
   // Re-sync when the graph prop changes
   useEffect(() => setNodes(initialNodes), [initialNodes, setNodes])
   useEffect(() => setEdges(initialEdges), [initialEdges, setEdges])
+
+  useEffect(() => {
+    const flowInstance = flowInstanceRef.current
+    if (!flowInstance || graph.nodes.length === 0) return
+
+    const fitOptions = layout === 'primary' ? PRIMARY_FIT_VIEW_OPTIONS : SIDE_FIT_VIEW_OPTIONS
+    const animationFrames = [requestAnimationFrame(() => flowInstance.fitView(fitOptions))]
+    const timers = [
+      window.setTimeout(() => flowInstance.fitView(fitOptions), 120),
+      window.setTimeout(() => flowInstance.fitView(fitOptions), 260),
+    ]
+
+    return () => {
+      animationFrames.forEach((frame) => cancelAnimationFrame(frame))
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [graph.nodes.length, layout, leftCollapsed, rightCollapsed])
 
   return (
     <section
@@ -542,16 +566,26 @@ export default function PsycheGraph({
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              onNodeClick={(_, node) => onSelectNode?.(node.id)}
+              onNodeClick={(event, node) => {
+                event.preventDefault()
+                event.stopPropagation()
+
+                onSelectNode?.(node.id, {
+                  additive: event.shiftKey || event.getModifierState('Shift'),
+                })
+              }}
               onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
               onNodeMouseLeave={() => setHoveredNodeId(null)}
               onPaneClick={() => onSelectNode?.(null)}
               nodeTypes={nodeTypes}
+              onInit={(instance) => {
+                flowInstanceRef.current = instance
+              }}
               nodesDraggable={false}
               nodesConnectable={false}
               elementsSelectable={false}
               fitView
-              fitViewOptions={{ padding: layout === 'primary' ? 0.18 : 0.3, maxZoom: 1.2 }}
+              fitViewOptions={layout === 'primary' ? PRIMARY_FIT_VIEW_OPTIONS : SIDE_FIT_VIEW_OPTIONS}
               proOptions={{ hideAttribution: true }}
               minZoom={0.3}
               maxZoom={2}
@@ -574,6 +608,21 @@ export default function PsycheGraph({
                 showInteractive={false}
               />
             </ReactFlow>
+          )}
+          {selectedNodeIds.length > 0 && (
+            <div
+              className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border px-3 py-1.5 text-[10px] font-medium"
+              style={{
+                background: 'color-mix(in srgb, var(--mirror-surface) 74%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--mirror-border) 70%, transparent)',
+                color: 'var(--mirror-muted)',
+                boxShadow: '0 8px 20px rgba(53, 42, 27, 0.04)',
+                backdropFilter: 'blur(14px)',
+                opacity: 0.82,
+              }}
+            >
+              Shift + click to select multiple nodes
+            </div>
           )}
         </div>
 

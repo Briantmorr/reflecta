@@ -83,10 +83,15 @@ Selecting a graph node enters node view.
 
 In node view:
 
-- the history pane expands
-- the history list filters to conversations tagged with that node
 - the history header is `Node Summary`
-- a dedicated node-view indicator card appears above the filtered list
+- the history pane expands
+- the selected node appears at the top with styling that matches the selected graph node highlight
+- selecting `You` shows all conversations
+- selecting any other node filters conversations to notes tagged with that node
+- node conversations are collapsed by default
+- node insights appear as a second panel below node conversations
+- current node insights can be placeholder copy like `Key patterns: desire for respect, work bleeding over, need for spaciousness`
+- long-term goal: node insights become tasteful synthesis, patterns, and reports for the selected node
 - clicking another node switches node view
 - clicking empty graph space exits node view
 

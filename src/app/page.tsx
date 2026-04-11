@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import ConversationList from '@/components/ConversationList'
 import ChatInterface from '@/components/ChatInterface'
 import PsycheGraph from '@/components/PsycheGraph'
@@ -230,7 +230,7 @@ export default function Home() {
   )
 
   const handleSelectNode = useCallback(
-    (nodeId: string | null) => {
+    (nodeId: string | null, options?: { additive?: boolean }) => {
       if (!nodeId) {
         setNodeView(null)
         if (activeConversation?.tags?.length) {
@@ -244,9 +244,19 @@ export default function Home() {
       const node = graph.nodes.find((candidate) => candidate.id === nodeId)
       if (!node) return
 
-      setNodeView({ nodeId: node.id, label: node.label, type: node.type })
-      setHighlightedNodeIds([node.id])
-      if (node.type !== 'user' && (activeConversation?.messages?.length ?? 0) === 0) {
+      const selectedNode = { nodeId: node.id, label: node.label, type: node.type }
+      setNodeView((previous) => {
+        const existingNodes = options?.additive ? previous?.nodes ?? [] : []
+        const alreadySelected = existingNodes.some((candidate) => candidate.nodeId === node.id)
+        const nextNodes = options?.additive && alreadySelected
+          ? existingNodes.filter((candidate) => candidate.nodeId !== node.id)
+          : options?.additive
+            ? [...existingNodes, selectedNode]
+            : [selectedNode]
+
+        return nextNodes.length > 0 ? { nodes: nextNodes } : null
+      })
+      if (!options?.additive && node.type !== 'user' && (activeConversation?.messages?.length ?? 0) === 0) {
         setStarterPrompt(buildNodeStarterQuestion(node.label))
       }
       openLeft()
@@ -254,9 +264,29 @@ export default function Home() {
     [activeConversation?.messages?.length, activeConversation?.tags, graph.nodes, openLeft]
   )
 
-  const visibleConversations = nodeView && nodeView.type !== 'user'
+  useEffect(() => {
+    if (nodeView) {
+      setHighlightedNodeIds(nodeView.nodes.map((node) => node.nodeId))
+      return
+    }
+
+    if (activeConversation?.tags?.length) {
+      setHighlightedNodeIds(activeConversation.tags.map((tag) => tag.nodeId))
+    } else {
+      setHighlightedNodeIds([])
+    }
+  }, [activeConversation?.tags, nodeView])
+
+  const selectedFilterNodeIds =
+    nodeView?.nodes.filter((node) => node.type !== 'user').map((node) => node.nodeId) ?? []
+  const selectedNodeIds = useMemo(
+    () => nodeView?.nodes.map((node) => node.nodeId) ?? [],
+    [nodeView]
+  )
+
+  const visibleConversations = selectedFilterNodeIds.length > 0
     ? conversations.filter((conversation) =>
-        (conversation.tags ?? []).some((tag) => tag.nodeId === nodeView.nodeId)
+        (conversation.tags ?? []).some((tag) => selectedFilterNodeIds.includes(tag.nodeId))
       )
     : conversations
 
@@ -277,7 +307,7 @@ export default function Home() {
       <PsycheGraph
         graph={graph}
         highlightedNodeIds={highlightedNodeIds}
-        selectedNodeId={nodeView?.nodeId ?? null}
+        selectedNodeIds={selectedNodeIds}
         onSelectNode={handleSelectNode}
         layout="primary"
       />
