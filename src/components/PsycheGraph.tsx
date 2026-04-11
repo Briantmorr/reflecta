@@ -23,6 +23,8 @@ import {
   Briefcase,
   Heart,
   Activity,
+  Palette,
+  Home,
   type LucideIcon,
 } from 'lucide-react'
 import { Graph, NodeType } from '@/types'
@@ -50,7 +52,7 @@ interface PsycheNodeData extends Record<string, unknown> {
 function PsycheNode({ data }: NodeProps) {
   const nodeData = data as PsycheNodeData
   const config = NODE_STYLES[nodeData.type]
-  const Icon = config.icon
+  const Icon = getNodeIcon(nodeData.type, nodeData.label)
   const scale = 1 + Math.min(nodeData.mentionCount * 0.04, 0.24)
   const isDormant = nodeData.dormant
   const isSelected = nodeData.selected
@@ -209,6 +211,23 @@ const NODE_STYLES: Record<
     size: 28,
     iconSize: 13,
   },
+}
+
+const DOMAIN_ICONS: Record<string, LucideIcon> = {
+  Self: UserIcon,
+  Health: Activity,
+  Work: Briefcase,
+  Relationships: Heart,
+  Hobbies: Palette,
+  Lifestyle: Home,
+}
+
+function getNodeIcon(type: NodeType, label?: string) {
+  if (type === 'domain' && label) {
+    return DOMAIN_ICONS[label] ?? NODE_STYLES.domain.icon
+  }
+
+  return NODE_STYLES[type].icon
 }
 
 // ─── Layout algorithm: radial, user at center ─────────────
@@ -641,28 +660,29 @@ export default function PsycheGraph({
 
 function LegendItem({ type, label }: { type: NodeType; label: string }) {
   const config = NODE_STYLES[type]
-  const Icon = config.icon
+  const Icon = getNodeIcon(type, label)
   return (
     <div
-      className="flex items-center gap-1.5 rounded-full px-2 py-1"
+      className="flex items-center gap-2 rounded-full px-3 py-2"
       style={{
         background: 'var(--mirror-surface)',
         border: '1px solid var(--mirror-border)',
+        boxShadow: '0 8px 22px rgba(0, 0, 0, 0.05)',
       }}
     >
       <div
         className="flex items-center justify-center rounded-full"
         style={{
-          width: 16,
-          height: 16,
+          width: 24,
+          height: 24,
           background: config.bg,
           border: `1px solid ${config.border}`,
           color: config.fg,
         }}
       >
-        <Icon size={8} strokeWidth={2} />
+        <Icon size={13} strokeWidth={2} />
       </div>
-      <span className="text-[10px]" style={{ color: 'var(--mirror-secondary)' }}>
+      <span className="text-xs font-medium" style={{ color: 'var(--mirror-secondary)' }}>
         {label}
       </span>
     </div>
