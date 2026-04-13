@@ -65,13 +65,16 @@ export default function Home() {
     [fetchConversation]
   )
 
-  const handleCreate = useCallback(async () => {
+  const handleCreate = useCallback(() => {
+    setActiveConversation(null)
+    setStarterPrompt(DEFAULT_STARTER_QUESTION)
+  }, [])
+
+  const createConversationRecord = useCallback(async () => {
     const res = await fetch('/api/conversations', { method: 'POST' })
-    if (!res.ok) return
-    const created = await res.json()
-    await fetchConversations()
-    await handleSelect(created.id)
-  }, [fetchConversations, handleSelect])
+    if (!res.ok) return null
+    return (await res.json()) as Conversation
+  }, [])
 
   // ─── Initial load ──────────────────────────────────────
   useEffect(() => {
@@ -98,7 +101,7 @@ export default function Home() {
 
       if (didAutoOpenConversation.current) return
       didAutoOpenConversation.current = true
-      await handleCreate()
+      handleCreate()
     }
 
     void loadInitialState()
@@ -123,35 +126,46 @@ export default function Home() {
 
   const handleSendMessage = useCallback(
     async (content: string) => {
-      if (!activeConversation || isSending) return
+      if (isSending) return
       setIsSending(true)
       setStarterPrompt(null)
 
-      // Optimistically add the user message
-      const optimisticUserMsg: Message = {
-        id: `temp-${Date.now()}`,
-        conversationId: activeConversation.id,
-        role: 'user',
-        content,
-        createdAt: new Date().toISOString(),
-      }
-      setActiveConversation((prev) =>
-        prev ? { ...prev, messages: [...(prev.messages ?? []), optimisticUserMsg] } : prev
-      )
+      let conversationForSend = activeConversation
+      let optimisticUserMsg: Message | null = null
 
       try {
-        const res = await fetch(`/api/conversations/${activeConversation.id}/messages`, {
+        if (!conversationForSend) {
+          const created = await createConversationRecord()
+          if (!created) throw new Error('Failed to create conversation')
+          conversationForSend = { ...created, messages: [], tags: [] }
+          setActiveConversation(conversationForSend)
+        }
+
+        optimisticUserMsg = {
+          id: `temp-${Date.now()}`,
+          conversationId: conversationForSend.id,
+          role: 'user',
+          content,
+          createdAt: new Date().toISOString(),
+        }
+        const optimisticMessage = optimisticUserMsg
+        setActiveConversation((prev) =>
+          prev ? { ...prev, messages: [...(prev.messages ?? []), optimisticMessage] } : prev
+        )
+
+        const res = await fetch(`/api/conversations/${conversationForSend.id}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content }),
         })
         if (!res.ok) throw new Error('Failed to send message')
         const data = await res.json()
+        const optimisticMessageId = optimisticUserMsg.id
 
         // Replace optimistic message with the real pair
         setActiveConversation((prev) => {
           if (!prev) return prev
-          const msgs = (prev.messages ?? []).filter((m) => m.id !== optimisticUserMsg.id)
+          const msgs = (prev.messages ?? []).filter((m) => m.id !== optimisticMessageId)
           return {
             ...prev,
             messages: [...msgs, data.userMessage, data.assistantMessage],
@@ -163,12 +177,15 @@ export default function Home() {
         await fetchConversations()
       } catch (err) {
         console.error(err)
+        const optimisticMessageId = optimisticUserMsg?.id
         // Roll back optimistic
         setActiveConversation((prev) =>
           prev
             ? {
                 ...prev,
-                messages: (prev.messages ?? []).filter((m) => m.id !== optimisticUserMsg.id),
+                messages: optimisticMessageId
+                  ? (prev.messages ?? []).filter((m) => m.id !== optimisticMessageId)
+                  : (prev.messages ?? []),
               }
             : prev
         )
@@ -176,7 +193,7 @@ export default function Home() {
         setIsSending(false)
       }
     },
-    [activeConversation, isSending, fetchConversations]
+    [activeConversation, createConversationRecord, isSending, fetchConversations]
   )
 
   const handleUpdateTags = useCallback(async () => {
@@ -256,12 +273,13 @@ export default function Home() {
 
         return nextNodes.length > 0 ? { nodes: nextNodes } : null
       })
-      if (!options?.additive && node.type !== 'user' && (activeConversation?.messages?.length ?? 0) === 0) {
-        setStarterPrompt(buildNodeStarterQuestion(node.label))
+      if (!options?.additive) {
+        setActiveConversation(null)
+        setStarterPrompt(node.type === 'user' ? DEFAULT_STARTER_QUESTION : buildNodeStarterQuestion(node.label))
       }
       openLeft()
     },
-    [activeConversation?.messages?.length, activeConversation?.tags, graph.nodes, openLeft]
+    [activeConversation?.tags, graph.nodes, openLeft]
   )
 
   useEffect(() => {
@@ -299,7 +317,6 @@ export default function Home() {
         conversations={visibleConversations}
         activeConversationId={activeConversation?.id ?? null}
         onSelect={handleSelect}
-        onCreate={handleCreate}
         onDelete={handleDelete}
         nodeView={nodeView}
         onClearNodeView={() => handleSelectNode(null)}

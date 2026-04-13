@@ -13,7 +13,9 @@ import {
   Position,
   Handle,
   NodeProps,
+  EdgeProps,
   BackgroundVariant,
+  useInternalNode,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
@@ -46,7 +48,15 @@ interface PsycheNodeData extends Record<string, unknown> {
   highlighted: boolean
   selected: boolean
   dormant: boolean
+  inFocus: boolean
+  driftDelay: number
   question?: string
+}
+
+function hashIdToDriftDelay(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return -(Math.abs(h) % 9000) / 1000
 }
 
 function PsycheNode({ data }: NodeProps) {
@@ -56,25 +66,31 @@ function PsycheNode({ data }: NodeProps) {
   const scale = 1 + Math.min(nodeData.mentionCount * 0.04, 0.24)
   const isDormant = nodeData.dormant
   const isSelected = nodeData.selected
-  const shellClassName = `psyche-node-shell${isDormant ? ' is-dormant' : ''}${isSelected ? ' is-selected' : ''}`
+  const isUser = nodeData.type === 'user'
+  const isDim = !nodeData.inFocus
+  const shellClassName =
+    `psyche-node-shell${isDormant ? ' is-dormant' : ''}${isSelected ? ' is-selected' : ''}` +
+    `${isUser ? ' is-user' : ''}${isDim ? ' is-dim' : ''}`
 
   return (
     <>
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
       <div
-        className={`group flex flex-col items-center gap-1.5 transition-all ${shellClassName}`}
+        className={`group flex flex-col items-center gap-1.5 ${shellClassName}`}
         style={{
           transform: `scale(${scale})`,
-          opacity: isDormant ? 0.72 : 1,
+          opacity: isDim ? undefined : isDormant ? 0.72 : 1,
           filter: isSelected
             ? 'drop-shadow(0 22px 36px color-mix(in srgb, var(--mirror-accent) 34%, transparent))'
             : nodeData.highlighted
               ? 'drop-shadow(0 12px 24px var(--mirror-accent-subtle))'
             : 'none',
+          // @ts-expect-error CSS custom property
+          '--drift-delay': `${nodeData.driftDelay}s`,
         }}
       >
         <div
-          className="flex items-center justify-center rounded-full transition-all duration-200 group-hover:-translate-y-0.5"
+          className="psyche-node-icon flex items-center justify-center rounded-full transition-all duration-200 group-hover:-translate-y-0.5"
           style={{
             width: config.size,
             height: config.size,
@@ -145,7 +161,100 @@ function PsycheNode({ data }: NodeProps) {
   )
 }
 
+// ─── Custom edge: straight line trimmed to circle rims ────
+interface PsycheEdgeData extends Record<string, unknown> {
+  fromColor: string
+  toColor: string
+  fromRadius: number
+  toRadius: number
+  strokeWidth: number
+  opacity: number
+  pulsing: boolean
+  isDim: boolean
+}
+
+function PsycheEdge({ id, source, target, data }: EdgeProps) {
+  const edgeData = (data ?? {}) as PsycheEdgeData
+  const sourceNode = useInternalNode(source)
+  const targetNode = useInternalNode(target)
+
+  if (!sourceNode || !targetNode) return null
+
+  // Node position is top-left of the shell; the circle sits at the top,
+  // centered horizontally. Shell width tracks the widest child (usually
+  // the label chip), so horizontal center = position + measuredWidth / 2.
+  const sourceWidth = sourceNode.measured?.width ?? edgeData.fromRadius * 2
+  const targetWidth = targetNode.measured?.width ?? edgeData.toRadius * 2
+  const sx = sourceNode.internals.positionAbsolute.x + sourceWidth / 2
+  const sy = sourceNode.internals.positionAbsolute.y + edgeData.fromRadius
+  const tx = targetNode.internals.positionAbsolute.x + targetWidth / 2
+  const ty = targetNode.internals.positionAbsolute.y + edgeData.toRadius
+
+  const dx = tx - sx
+  const dy = ty - sy
+  const dist = Math.hypot(dx, dy) || 1
+
+  // If nodes overlap, bail on drawing.
+  if (dist <= edgeData.fromRadius + edgeData.toRadius) return null
+
+  const ux = dx / dist
+  const uy = dy / dist
+  // Small gap so the line doesn't touch the border stroke.
+  const gap = 2
+  const x1 = sx + ux * (edgeData.fromRadius + gap)
+  const y1 = sy + uy * (edgeData.fromRadius + gap)
+  const x2 = tx - ux * (edgeData.toRadius + gap)
+  const y2 = ty - uy * (edgeData.toRadius + gap)
+
+  const path = `M ${x1} ${y1} L ${x2} ${y2}`
+  const gradId = `psyche-edge-grad-${id.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+  const isDim = edgeData.isDim
+  const stroke = isDim ? 'var(--node-edge-stroke)' : `url(#${gradId})`
+
+  return (
+    <>
+      <defs>
+        <linearGradient
+          id={gradId}
+          gradientUnits="userSpaceOnUse"
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+        >
+          <stop offset="0%" stopColor={edgeData.fromColor} stopOpacity={0.9} />
+          <stop offset="100%" stopColor={edgeData.toColor} stopOpacity={0.9} />
+        </linearGradient>
+      </defs>
+      <path
+        id={id}
+        d={path}
+        fill="none"
+        stroke={stroke}
+        strokeWidth={edgeData.strokeWidth}
+        strokeOpacity={isDim ? 0.18 : edgeData.opacity}
+        strokeLinecap="round"
+        style={{
+          transition:
+            'stroke-width 220ms ease, stroke-opacity 220ms ease',
+        }}
+      />
+      {edgeData.pulsing && !isDim && (
+        <circle
+          r={1.35}
+          className="psyche-edge-pulse"
+          fill={edgeData.toColor}
+          opacity={0.34}
+        >
+          <animateMotion dur="4.8s" repeatCount="indefinite" path={path} />
+        </circle>
+      )}
+    </>
+  )
+}
+
 const nodeTypes = { psyche: PsycheNode }
+const edgeTypes = { psyche: PsycheEdge }
 const PRIMARY_FIT_VIEW_OPTIONS = { padding: 0.08, maxZoom: 1.45 }
 const SIDE_FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1.45 }
 
@@ -211,6 +320,15 @@ const NODE_STYLES: Record<
     size: 28,
     iconSize: 13,
   },
+}
+
+// Solid accent colors used for edge gradient stops (gradients won't paint SVG stroke).
+const NODE_ACCENT: Record<NodeType, string> = {
+  user: '#b8934b',
+  domain: '#64748b',
+  person: '#5e7a99',
+  role: '#836aa3',
+  emotion: '#a06b6b',
 }
 
 const DOMAIN_ICONS: Record<string, LucideIcon> = {
@@ -359,7 +477,42 @@ function computeLayout(graph: Graph) {
     })
   })
 
-  return positions
+  // Build full adjacency (including user edges) for focus-mode traversal.
+  const fullAdjacency = new Map<string, Set<string>>()
+  for (const edge of graph.edges) {
+    if (!fullAdjacency.has(edge.fromId)) fullAdjacency.set(edge.fromId, new Set())
+    if (!fullAdjacency.has(edge.toId)) fullAdjacency.set(edge.toId, new Set())
+    fullAdjacency.get(edge.fromId)?.add(edge.toId)
+    fullAdjacency.get(edge.toId)?.add(edge.fromId)
+  }
+
+  return { positions, parentByNode, childrenByParent, userNodeId, adjacency: fullAdjacency }
+}
+
+// Walk ancestry back to user + include selected + direct children.
+function computeFocusSet(
+  selectedIds: string[],
+  parentByNode: Map<string, string>,
+  childrenByParent: Map<string, string[]>,
+  adjacency: Map<string, Set<string>>,
+  userNodeId: string
+): Set<string> | null {
+  if (selectedIds.length === 0) return null
+  const focus = new Set<string>([userNodeId])
+  for (const id of selectedIds) {
+    focus.add(id)
+    // ancestry
+    let cursor: string | undefined = id
+    while (cursor && parentByNode.has(cursor)) {
+      cursor = parentByNode.get(cursor)
+      if (cursor) focus.add(cursor)
+    }
+    // direct children (via layout hierarchy)
+    for (const childId of childrenByParent.get(id) ?? []) focus.add(childId)
+    // direct neighbors (catches user↔node edges + horizontal links)
+    for (const neighbor of adjacency.get(id) ?? []) focus.add(neighbor)
+  }
+  return focus
 }
 
 // ─── Main component ───────────────────────────────────────
@@ -373,15 +526,28 @@ export default function PsycheGraph({
   const { leftCollapsed, rightCollapsed } = useSettings()
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
   const flowInstanceRef = useRef<ReactFlowInstance | null>(null)
+  const graphLayout = useMemo(() => computeLayout(graph), [graph])
+
+  const focusSet = useMemo(
+    () =>
+      computeFocusSet(
+        selectedNodeIds,
+        graphLayout.parentByNode,
+        graphLayout.childrenByParent,
+        graphLayout.adjacency,
+        graphLayout.userNodeId
+      ),
+    [selectedNodeIds, graphLayout]
+  )
+
   const initialNodes = useMemo<FlowNode[]>(() => {
-    const positions = computeLayout(graph)
     const selected = new Set(selectedNodeIds)
     const highlighted = new Set([...highlightedNodeIds, ...selectedNodeIds])
 
     return graph.nodes.map((n) => ({
       id: n.id,
       type: 'psyche',
-      position: positions.get(n.id) ?? { x: 0, y: 0 },
+      position: graphLayout.positions.get(n.id) ?? { x: 0, y: 0 },
       data: {
         label: n.label,
         type: n.type,
@@ -389,10 +555,12 @@ export default function PsycheGraph({
         highlighted: highlighted.has(n.id),
         selected: selected.has(n.id),
         dormant: Boolean(n.dormant),
+        inFocus: focusSet ? focusSet.has(n.id) : true,
+        driftDelay: hashIdToDriftDelay(n.id),
         question: n.question,
       } satisfies PsycheNodeData,
     }))
-  }, [graph, highlightedNodeIds, selectedNodeIds])
+  }, [graph, highlightedNodeIds, selectedNodeIds, graphLayout, focusSet])
 
   const initialEdges = useMemo<FlowEdge[]>(() => {
     const highlighted = new Set(highlightedNodeIds)
@@ -402,22 +570,43 @@ export default function PsycheGraph({
       const fromNode = graph.nodes.find((node) => node.id === e.fromId)
       const toNode = graph.nodes.find((node) => node.id === e.toId)
       const isDormantEdge = Boolean(fromNode?.dormant || toNode?.dormant)
+      const edgeInFocus = focusSet
+        ? focusSet.has(e.fromId) && focusSet.has(e.toId)
+        : true
+
+      const fromColor = isHot
+        ? 'var(--mirror-accent)'
+        : NODE_ACCENT[fromNode?.type ?? 'person']
+      const toColor = isHot
+        ? 'var(--mirror-accent)'
+        : NODE_ACCENT[toNode?.type ?? 'person']
+
+      const fromScale = 1 + Math.min((fromNode?.mentionCount ?? 0) * 0.04, 0.24)
+      const toScale = 1 + Math.min((toNode?.mentionCount ?? 0) * 0.04, 0.24)
+      const fromRadius =
+        ((fromNode ? NODE_STYLES[fromNode.type].size : 30) * fromScale) / 2
+      const toRadius =
+        ((toNode ? NODE_STYLES[toNode.type].size : 30) * toScale) / 2
+
       return {
         id: e.id,
         source: e.fromId,
         target: e.toId,
-        type: 'smoothstep',
-        pathOptions: { borderRadius: 22, offset: 10 },
-        style: {
-          stroke:
-            isHot || isHovered ? 'var(--mirror-accent)' : 'var(--node-edge-stroke)',
-          strokeWidth: isHot ? 2.25 : isHovered ? 1.9 : isDormantEdge ? 1.1 : 1.35,
-          opacity: isHot ? 0.96 : isHovered ? 0.8 : isDormantEdge ? 0.28 : 0.56,
-        },
+        type: 'psyche',
+        data: {
+          fromColor,
+          toColor,
+          fromRadius,
+          toRadius,
+          strokeWidth: isHot ? 2.4 : isHovered ? 2.0 : isDormantEdge ? 1.1 : 1.4,
+          opacity: isHot ? 0.96 : isHovered ? 0.82 : isDormantEdge ? 0.32 : 0.62,
+          pulsing: isHot,
+          isDim: !edgeInFocus,
+        } satisfies PsycheEdgeData,
         animated: false,
       }
     })
-  }, [graph, highlightedNodeIds, hoveredNodeId])
+  }, [graph, highlightedNodeIds, hoveredNodeId, focusSet])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -580,7 +769,9 @@ export default function PsycheGraph({
               </p>
             </div>
           ) : (
-            <ReactFlow
+            <>
+              <div className="psyche-graph-glow" aria-hidden="true" />
+              <ReactFlow
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}
@@ -597,6 +788,7 @@ export default function PsycheGraph({
               onNodeMouseLeave={() => setHoveredNodeId(null)}
               onPaneClick={() => onSelectNode?.(null)}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               onInit={(instance) => {
                 flowInstanceRef.current = instance
               }}
@@ -608,7 +800,6 @@ export default function PsycheGraph({
               proOptions={{ hideAttribution: true }}
               minZoom={0.3}
               maxZoom={2}
-              defaultEdgeOptions={{ type: 'default' }}
             >
               <Background
                 variant={BackgroundVariant.Dots}
@@ -626,7 +817,8 @@ export default function PsycheGraph({
                 }}
                 showInteractive={false}
               />
-            </ReactFlow>
+              </ReactFlow>
+            </>
           )}
           {selectedNodeIds.length > 0 && (
             <div

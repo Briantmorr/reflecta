@@ -75,6 +75,8 @@ export async function applyConversationMap(
     await ensureSupportingStructure(entity.name, entity.type, nodeId, userNodeId, nodeIdsByLabel)
   }
 
+  await ensurePersonRoleContainers(taggableEntities, nodeIdsByLabel)
+
   if (taggedNodeIds.size === 0) {
     const fallback = await createFallbackConversationTag(conversationId)
     taggedNodeIds.add(fallback)
@@ -291,6 +293,9 @@ function inferTypeForTarget(label: string): NodeType {
     'boss',
     'parents',
     'siblings',
+    'fatherhood',
+    'parenthood',
+    'responsibility',
     'clients',
     'friends',
     'software_engineering',
@@ -355,6 +360,32 @@ async function ensureSupportingStructure(
   await upsertRelationship(nodeId, domainId, 'part_of')
 }
 
+async function ensurePersonRoleContainers(
+  entities: Array<{ name: string; type: NodeType }>,
+  nodeIdsByLabel: Map<string, string>
+) {
+  const roleLabels = new Set(
+    entities
+      .filter((entity) => entity.type === 'role')
+      .map((entity) => normalizeLabel(entity.name))
+  )
+
+  if (!roleLabels.has('coworkers')) return
+
+  const coworkersId = nodeIdsByLabel.get('coworkers')
+  if (!coworkersId) return
+
+  for (const person of entities.filter((entity) => entity.type === 'person')) {
+    const normalized = normalizeLabel(person.name)
+    if (isFamilyPerson(normalized)) continue
+
+    const personId = nodeIdsByLabel.get(normalized)
+    if (!personId) continue
+
+    await upsertRelationship(personId, coworkersId, 'member_of')
+  }
+}
+
 async function getOrCreateNamedNode(
   label: string,
   type: NodeType,
@@ -400,6 +431,9 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'identity',
     'purpose',
     'values',
+    'responsibility',
+    'fatherhood',
+    'parenthood',
     'confidence',
     'selfworth',
     'self_esteem',
@@ -495,8 +529,11 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
 function inferRoleContainer(label: string): string | null {
   const normalized = normalizeLabel(label)
 
-  const familyPeople = new Set(['dad', 'mom', 'brother', 'sister', 'son', 'daughter'])
-  if (familyPeople.has(normalized)) return null
+  if (isFamilyPerson(normalized)) return null
 
   return null
+}
+
+function isFamilyPerson(normalizedLabel: string) {
+  return new Set(['dad', 'mom', 'brother', 'sister', 'son', 'daughter']).has(normalizedLabel)
 }

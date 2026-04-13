@@ -4,11 +4,9 @@ import { useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
-  MessageSquarePlus,
-  PanelLeftClose,
-  PanelLeftOpen,
   Sparkles,
   Trash2,
+  UserCircle,
   X,
 } from 'lucide-react'
 import { ConversationListItem, NodeView } from '@/types'
@@ -19,7 +17,6 @@ interface ConversationListProps {
   conversations: ConversationListItem[]
   activeConversationId: string | null
   onSelect: (id: string) => void
-  onCreate: () => void
   onDelete: (id: string) => void
   nodeView: NodeView | null
   onClearNodeView: () => void
@@ -29,7 +26,6 @@ export default function ConversationList({
   conversations,
   activeConversationId,
   onSelect,
-  onCreate,
   onDelete,
   nodeView,
   onClearNodeView,
@@ -37,7 +33,7 @@ export default function ConversationList({
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [nodeConversationsOpen, setNodeConversationsOpen] = useState(false)
-  const { leftCollapsed, toggleLeft } = useSettings()
+  const { openSettings } = useSettings()
   const selectedNodes = nodeView?.nodes ?? []
   const selectedNonUserNodes = selectedNodes.filter((node) => node.type !== 'user')
   const selectedLabel = selectedNodes.length > 0
@@ -58,9 +54,9 @@ export default function ConversationList({
 
   return (
     <aside
-      className="flex h-screen overflow-hidden select-none transition-[width] duration-200"
+      className="flex h-screen overflow-hidden select-none"
       style={{
-        width: leftCollapsed ? '72px' : '280px',
+        width: '280px',
         flexShrink: 0,
         background: 'var(--mirror-nav)',
         borderRight: '1px solid var(--mirror-border)',
@@ -78,73 +74,39 @@ export default function ConversationList({
             >
               <Sparkles size={15} style={{ color: 'var(--mirror-accent)' }} />
             </div>
-            {!leftCollapsed && (
-              <div className="min-w-0">
-                <div
-                  className="text-[11px] font-semibold uppercase tracking-[0.22em]"
-                  style={{ color: 'var(--mirror-secondary)' }}
-                >
-                  Workspace
-                </div>
-                <div className="text-sm font-semibold" style={{ color: 'var(--mirror-text)' }}>
-                  Node Summary
-                </div>
+            <div className="min-w-0">
+              <div
+                className="text-[11px] font-semibold uppercase tracking-[0.22em]"
+                style={{ color: 'var(--mirror-secondary)' }}
+              >
+                Workspace
               </div>
-            )}
+              <div className="text-sm font-semibold" style={{ color: 'var(--mirror-text)' }}>
+                Node Summary
+              </div>
+            </div>
           </div>
-          <div className={`flex items-center ${leftCollapsed ? 'flex-col gap-2' : 'gap-2'}`}>
-            <button
-              type="button"
-              onClick={onCreate}
-              title="New conversation"
-              aria-label="New conversation"
-              className="mirror-focus-ring flex items-center justify-center rounded-full transition-colors"
-              style={{
-                width: '32px',
-                height: '32px',
-                color: 'var(--mirror-secondary)',
-                background: 'var(--mirror-elevated)',
-              }}
-            >
-              <MessageSquarePlus size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={toggleLeft}
-              title={leftCollapsed ? 'Expand history' : 'Collapse history'}
-              aria-label={leftCollapsed ? 'Expand history' : 'Collapse history'}
-              className="mirror-focus-ring flex items-center justify-center rounded-full transition-colors"
-              style={{
-                width: '32px',
-                height: '32px',
-                color: 'var(--mirror-secondary)',
-                background: 'var(--mirror-elevated)',
-              }}
-            >
-              {leftCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={openSettings}
+            title="Settings"
+            aria-label="Open user settings"
+            className="mirror-focus-ring flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+            style={{
+              color: 'var(--mirror-secondary)',
+              background: 'var(--mirror-elevated)',
+            }}
+          >
+            <UserCircle size={16} />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto py-3">
-          {leftCollapsed ? (
-            <div />
-          ) : !nodeView && conversations.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+          {!nodeView && conversations.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center">
               <p className="text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
                 No conversations yet.
               </p>
-              <button
-                type="button"
-                onClick={onCreate}
-                className="mirror-focus-ring rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-                style={{
-                  background: 'var(--mirror-accent-subtle)',
-                  color: 'var(--mirror-accent)',
-                }}
-              >
-                Start one
-              </button>
             </div>
           ) : (
             <div className="space-y-3 px-3">
@@ -349,15 +311,13 @@ export default function ConversationList({
         </div>
 
         <div
-          className={`px-4 py-3 ${leftCollapsed ? 'flex justify-center' : 'flex items-center justify-between'}`}
+          className="flex items-center justify-between px-4 py-3"
           style={{ borderTop: '1px solid var(--mirror-border)' }}
         >
-          {!leftCollapsed && (
-            <span className="text-xs" style={{ color: 'var(--mirror-muted)' }}>
-              {conversations.length}{' '}
-              {conversations.length === 1 ? 'note' : 'notes'}
-            </span>
-          )}
+          <span className="text-xs" style={{ color: 'var(--mirror-muted)' }}>
+            {conversations.length}{' '}
+            {conversations.length === 1 ? 'note' : 'notes'}
+          </span>
           <span
             className="rounded-full px-2 py-1 text-[9px] font-semibold tracking-[0.18em]"
             style={{

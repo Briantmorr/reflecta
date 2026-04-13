@@ -233,15 +233,26 @@ kbd {
 }
 
 .psyche-node-shell {
+  --drift-delay: 0s;
   transition:
     filter 220ms ease,
-    opacity 220ms ease,
+    opacity 320ms ease,
     transform 220ms ease;
+  animation: psyche-node-drift 9s ease-in-out infinite;
+  animation-delay: var(--drift-delay);
+}
+
+.psyche-node-shell.is-dim {
+  opacity: 0.56 !important;
+  filter: saturate(0.82) !important;
+}
+
+.psyche-node-shell.is-dim .psyche-node-icon {
+  box-shadow: none !important;
 }
 
 .psyche-node-shell:hover {
   filter: drop-shadow(0 18px 28px rgba(96, 80, 44, 0.12));
-  transform: translateY(-1px);
 }
 
 .psyche-node-shell.is-dormant:hover {
@@ -249,7 +260,14 @@ kbd {
 }
 
 .psyche-node-shell.is-selected {
-  animation: selected-node-pulse 2.8s ease-in-out infinite;
+  animation:
+    psyche-node-drift 9s ease-in-out infinite,
+    selected-node-pulse 2.8s ease-in-out infinite;
+  animation-delay: var(--drift-delay), 0s;
+}
+
+.psyche-node-shell.is-user .psyche-node-icon {
+  animation: psyche-user-breath 4.2s ease-in-out infinite;
 }
 
 .react-flow__node:hover .psyche-node-shell:not(.is-dormant) {
@@ -266,6 +284,71 @@ kbd {
   }
 }
 
+@keyframes psyche-node-drift {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  25% {
+    translate: 1.2px -1.4px;
+  }
+  50% {
+    translate: -1.4px 0.9px;
+  }
+  75% {
+    translate: 0.6px 1.3px;
+  }
+}
+
+@keyframes psyche-user-breath {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--mirror-accent) 18%, transparent),
+      var(--node-shadow);
+  }
+  50% {
+    transform: scale(1.045);
+    box-shadow:
+      0 0 0 10px color-mix(in srgb, var(--mirror-accent) 0%, transparent),
+      0 18px 34px color-mix(in srgb, var(--mirror-accent) 26%, transparent);
+  }
+}
+
+/* ─── Graph atmosphere ────────────────────────────────── */
+.psyche-graph-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--mirror-accent) 18%, transparent) 0%,
+      color-mix(in srgb, var(--mirror-accent) 8%, transparent) 18%,
+      transparent 52%
+    );
+  animation: psyche-graph-glow-breath 9s ease-in-out infinite;
+  z-index: 0;
+}
+
+@keyframes psyche-graph-glow-breath {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+/* ─── Edge synapse pulses ─────────────────────────────── */
+.psyche-edge-pulse {
+  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--mirror-accent) 22%, transparent));
+}
+
 /* ─── Utilities ────────────────────────────────────────── */
 .mirror-focus-ring:focus-visible {
   outline: 2px solid var(--mirror-accent);
@@ -276,6 +359,26 @@ kbd {
 .mirror-fade-in {
   animation: mirror-fade-in 160ms ease-out;
 }
+
+.mirror-map-loading {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--mirror-accent),
+    transparent
+  );
+  animation: mirror-map-loading 1.05s ease-in-out infinite;
+}
+
+@keyframes mirror-map-loading {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes mirror-fade-in {
   from {
     opacity: 0;

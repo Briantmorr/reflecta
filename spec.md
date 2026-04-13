@@ -2,26 +2,26 @@
 
 ## Product Shape
 
-Mirror is a graph-first reflective app.
+Mirror = graph-first reflective app.
 
 Layout:
 
-- left: collapsible conversation history
+- left: collapsible convo history
 - center: primary map surface
-- right: collapsible conversation panel
+- right: collapsible convo panel
 
-Light mode is the default.
+Light mode default.
 
 ## Main Experience
 
-- the map is the first thing the user sees
-- the six core domains are always present around `You`
-- dormant core domains are greyed out but still hoverable and clickable
-- clicking a dormant domain selects that node and can load a single themed starter question into an empty conversation
-- the default blank conversation starter is `What's been on your mind lately?`
-- starter questions are local UI copy, not LLM-generated prompts
-- conversation tags are applied after the user presses `Update map`
-- the graph re-renders from conversation tags, not from per-message extraction
+- map shown first
+- six core domains always around `You`
+- dormant cores greyed, still hoverable/clickable
+- click dormant domain -> selects node, loads single themed starter into empty convo
+- default blank starter: `What's been on your mind lately?`
+- starters = local UI copy, not LLM prompts
+- convo tags applied after user hits `Update map`
+- graph re-renders from convo tags, not per-message extraction
 
 ## Core Domains
 
@@ -34,71 +34,71 @@ Light mode is the default.
 
 Rules:
 
-- these six make up the first ring
-- `You` only connects to first-ring container nodes
-- emotions do not appear as graph nodes
-- edge labels are hidden
-- node maps should feel earned, not noisy
+- these six = first ring
+- `You` connects only to first-ring containers
+- emotions != graph nodes
+- edge labels hidden
+- maps feel earned, not noisy
 
 ## Graph Behavior
 
-- tier-one nodes remain visible even before they have child structure
-- dormant tier-one nodes stay visually muted until they gain children
-- node hover should only react on connected links, not neighboring nodes
-- selected nodes can still highlight related structure
-- the first ring should sit in a snapped honeycomb-like layout
-- graph chrome should stay minimal and readable
+- tier-one nodes visible before having children
+- dormant tier-one muted until they gain children
+- hover reacts only on connected links, not neighbors
+- selected nodes can highlight related structure
+- first ring = snapped honeycomb-ish layout
+- chrome minimal, readable
 
 ## Conversation Mapping
 
-Mirror separates two LLM jobs:
+Two LLM jobs separated:
 
-1. **Turn response**: GPT responds to the active conversation using recent history plus relevant graph context
-2. **Conversation tagging**: after a conversation, the user presses `Update map` and GPT returns a small set of durable tags
+1. **Turn response**: GPT replies to active convo using recent history + relevant graph context
+2. **Conversation tagging**: after convo, user hits `Update map`, GPT returns small set of durable tags
 
 Tagging rules:
 
-- every conversation should end up with 1 to 6 durable tags
-- prefer existing nodes when possible
-- avoid filler like `life`, `thoughts`, `feelings`, `stress`
+- each convo ends with 1-6 durable tags
+- prefer existing nodes
+- avoid filler: `life`, `thoughts`, `feelings`, `stress`
 - prefer concrete people like `Jen`
-- prefer container nodes for groups like `Coworkers`, `Parents`, `Clients`
+- prefer container nodes for groups: `Coworkers`, `Parents`, `Clients`
 - favor structures like `Work -> Coworkers -> Jen`
-- keep the map lean and resist node bloat
+- keep map lean, resist node bloat
 
 ## Conversation UI
 
-- the conversation panel is the right-side support surface, not the primary entry point
-- the conversation panel is collapsible
-- the map itself is not collapsible
-- the app opens directly into a blank conversation with one starter question
-- selecting graph nodes should not create a conversation record by itself
-- user and Mirror messages should be visually distinct while staying in palette
-- conversation tags appear at the top of the active conversation
-- tags can be manually removed and should update the graph immediately
+- convo panel = right-side support, not primary entry
+- convo panel collapsible
+- map not collapsible
+- app opens into blank convo w/ one starter
+- selecting graph nodes != creating convo record
+- user and Mirror messages visually distinct, stay in palette
+- convo tags at top of active convo
+- tags manually removable, update graph immediately
 
 ## Node View
 
-Selecting a graph node enters node view.
+Selecting graph node enters node view.
 
 In node view:
 
-- the history header is `Node Summary`
-- the history pane expands
-- the selected node appears at the top with styling that matches the selected graph node highlight
-- selecting `You` shows all conversations
-- selecting any other node filters conversations to notes tagged with that node
-- node conversations are collapsed by default
-- node insights appear as a second panel below node conversations
-- current node insights can be placeholder copy like `Key patterns: desire for respect, work bleeding over, need for spaciousness`
-- long-term goal: node insights become tasteful synthesis, patterns, and reports for the selected node
-- clicking another node switches node view
-- clicking empty graph space exits node view
+- history header = `Node Summary`
+- history pane expands
+- selected node at top, styled to match selected-node highlight
+- selecting `You` shows all convos
+- selecting other node filters convos to notes tagged with it
+- node convos collapsed by default
+- node insights = second panel below node convos
+- current insights can be placeholder: `Key patterns: desire for respect, work bleeding over, need for spaciousness`
+- long-term: insights become tasteful synthesis, patterns, reports per node
+- click another node -> switch node view
+- click empty graph space -> exit node view
 
 Collapsed history behavior:
 
-- previous conversations are hidden entirely
-- only the minimal rail remains visible
+- prior convos hidden entirely
+- only minimal rail visible
 
 ## LLM
 
@@ -108,9 +108,9 @@ Collapsed history behavior:
 
 Turn responses should:
 
-- sound perceptive, calm, and concise
-- distill patterns instead of offering generic reassurance
+- sound perceptive, calm, concise
+- distill patterns, not generic reassurance
 - connect current reflection to prior context when supported
-- explore the user's life with them, not lecture them
-- ask at most one grounded follow-up question
-- avoid research/statistics unless explicitly asked
+- explore user's life with them, not lecture
+- ask at most one grounded follow-up
+- no research/stats unless asked

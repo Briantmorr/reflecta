@@ -86,7 +86,7 @@ Response format:
 Extraction instructions:
 - Extract entities that are explicitly present or strongly implied in the user's message.
 - Prefer durable entities: people (by name), roles, life domains.
-- Normalize obvious variants: "father" -> "Dad", "mother" -> "Mom", "job" -> "Work".
+- Normalize family references by role and context: "my father" -> "Dad", "my mother" -> "Mom", "becoming a father" or "new dad" -> "Fatherhood", "job" -> "Work".
 - The user entity should be labeled "User".
 - Keep relationship labels short, snake_case, and semantically specific.
 - If nothing is worth extracting, return empty arrays.
@@ -110,14 +110,19 @@ Rules:
 - Tier-one domains should anchor the map. Everything else should build beneath them.
 - Do not return only tier-one domains when the conversation clearly contains specific subnodes.
 - If a specific subnode is present, include it. Good: Work + Software Engineering + AI. Bad: Work alone.
-- Prefer durable structure like Relationships, Work, Self, Lifestyle, Coworkers, Mom, Dad, Jen, Brother, Clients, Home, Routine.
+- If the user clearly names a hobby, craft, sport, art form, practice, or interest, include it as a role node under Hobbies. Good: Hobbies -> Pottery. Bad: Hobbies alone.
+- Names are high-signal life-map nodes. If the user names a real person, strongly consider including that name as a person node.
+- If the user names a coworker, colleague, teammate, client, family member, partner, or friend, include the named person unless the mention is clearly incidental.
+- Prefer durable structure like Relationships, Work, Self, Lifestyle, Coworkers, Mom, Dad, Jen, Brother, Clients, Home, Routine, Fatherhood, Responsibility, Pottery.
 - When a specific person is known, prefer their actual name as a person node, not a generic label.
+- Do not conflate the user's parent with the user's own future parenthood. "My dad" means Dad; "I'm going to be a dad" means Fatherhood.
 - Use generic group nodes like Coworkers, Parents, Siblings, Clients as role/group containers.
 - Good: Work -> Coworkers -> Jen. Bad: Work -> Coworker.
-- If you include a named person like Jen and they belong to a group, also include the parent group node.
+- Good: Work -> Coworkers -> Jason when Jason is described as a coworker.
+- If you include a named person like Jen or Jason and they belong to a group, also include the parent group node.
 - Avoid generic filler like "life", "feelings", "stress", "thoughts", "conversation".
-- Avoid creating new nodes unless the conversation clearly supports them.
-- Favor structures like Relationships -> Dad, Mom or Work -> Coworkers -> Jen or Lifestyle -> Home.
+- Avoid creating new nodes unless the conversation clearly supports them; named people and explicitly named hobbies/interests usually clear this bar.
+- Favor structures like Relationships -> Dad, Mom or Work -> Coworkers -> Jen or Self -> Fatherhood or Hobbies -> Pottery or Lifestyle -> Home.
 - Relationships should be enough to place nodes in the map.
 - The user should be named "User".
 - If an existing node is a good fit, use its exact label.
@@ -494,13 +499,27 @@ function sanitizeTagResult(result: LLMResult, transcript = ''): LLMResult {
   const sanitized = sanitizeLLMResult(result)
   const entities = sanitized.entities
     .filter((entity) => entity.type !== 'emotion')
-    .map(normalizeTagEntity)
+    .map((entity) => normalizeTagEntity(entity, transcript))
   const enrichedEntities = enrichTagEntities(entities, transcript).slice(0, 6)
+  const enrichedEntityLabels = new Set(enrichedEntities.map((entity) => normalizeLabel(entity.name)))
+  const inferredRelationships = inferTagRelationships(enrichedEntities, transcript)
   const relationships = sanitized.relationships
     .filter((relationship) => {
       const from = normalizeLabel(relationship.from)
       const to = normalizeLabel(relationship.to)
       return !EMOTION_LABELS.has(from) && !EMOTION_LABELS.has(to)
+    })
+    .filter((relationship) => {
+      const from = normalizeLabel(relationship.from)
+      const to = normalizeLabel(relationship.to)
+      return enrichedEntityLabels.has(from) && enrichedEntityLabels.has(to)
+    })
+    .concat(inferredRelationships)
+    .filter((relationship, index, list) => {
+      const key = `${normalizeLabel(relationship.from)}:${relationship.type}:${normalizeLabel(relationship.to)}`
+      return list.findIndex((candidate) => {
+        return `${normalizeLabel(candidate.from)}:${candidate.type}:${normalizeLabel(candidate.to)}` === key
+      }) === index
     })
     .slice(0, 10)
 
@@ -531,41 +550,172 @@ function enrichTagEntities(
   entities.forEach(add)
 
   const nonDomainCount = entities.filter((entity) => entity.type !== 'domain').length
-  if (nonDomainCount >= 2 || transcript.trim().length === 0) {
+  if (transcript.trim().length === 0) {
     return [...deduped.values()]
   }
 
   const normalizedTranscript = normalizeLabel(transcript)
-  const heuristics: Array<{ regex: RegExp; entity: { name: string; type: NodeType } }> = [
-    { regex: /\bsoftware engineer(ing)?\b/i, entity: { name: 'Software Engineering', type: 'role' } },
-    { regex: /\barchitect(ure|ural)?\b/i, entity: { name: 'Architecture', type: 'role' } },
-    { regex: /\b(ai|artificial intelligence|gpt|chatgpt)\b/i, entity: { name: 'AI', type: 'role' } },
-    { regex: /\bphilosophy|philosopher\b/i, entity: { name: 'Philosophy', type: 'role' } },
-    { regex: /\bhackathon(s)?\b/i, entity: { name: 'Hackathons', type: 'role' } },
-    { regex: /\bcommunity meetup(s)?|meetup(s)?\b/i, entity: { name: 'Community', type: 'role' } },
-    { regex: /\bcoworker(s)?|colleague(s)?|teammate(s)?\b/i, entity: { name: 'Coworkers', type: 'role' } },
-    { regex: /\bclient(s)?|customer(s)?\b/i, entity: { name: 'Clients', type: 'role' } },
-    { regex: /\bdad|father\b/i, entity: { name: 'Dad', type: 'person' } },
-    { regex: /\bmom|mother\b/i, entity: { name: 'Mom', type: 'person' } },
-    { regex: /\bbrother\b/i, entity: { name: 'Brother', type: 'person' } },
-    { regex: /\bsister\b/i, entity: { name: 'Sister', type: 'person' } },
-    { regex: /\bpartner|wife|husband|boyfriend|girlfriend\b/i, entity: { name: 'Partner', type: 'person' } },
-    { regex: /\bfriend(s)?\b/i, entity: { name: 'Friends', type: 'role' } },
-    { regex: /\brunning|runner\b/i, entity: { name: 'Running', type: 'role' } },
-    { regex: /\bwriting|writer\b/i, entity: { name: 'Writing', type: 'role' } },
-    { regex: /\breading|reader\b/i, entity: { name: 'Reading', type: 'role' } },
-    { regex: /\bmusic\b/i, entity: { name: 'Music', type: 'role' } },
-    { regex: /\bhome|house|apartment\b/i, entity: { name: 'Home', type: 'role' } },
-    { regex: /\broutine(s)?|habit(s)?\b/i, entity: { name: 'Routine', type: 'role' } },
-  ]
+  if (nonDomainCount < 2) {
+    const heuristics: Array<{ regex: RegExp; entity: { name: string; type: NodeType } }> = [
+      { regex: /\bsoftware engineer(ing)?\b/i, entity: { name: 'Software Engineering', type: 'role' } },
+      { regex: /\barchitect(ure|ural)?\b/i, entity: { name: 'Architecture', type: 'role' } },
+      { regex: /\b(ai|artificial intelligence|gpt|chatgpt)\b/i, entity: { name: 'AI', type: 'role' } },
+      { regex: /\bphilosophy|philosopher\b/i, entity: { name: 'Philosophy', type: 'role' } },
+      { regex: /\bhackathon(s)?\b/i, entity: { name: 'Hackathons', type: 'role' } },
+      { regex: /\bcommunity meetup(s)?|meetup(s)?\b/i, entity: { name: 'Community', type: 'role' } },
+      { regex: /\bcoworker(s)?|colleague(s)?|teammate(s)?\b/i, entity: { name: 'Coworkers', type: 'role' } },
+      { regex: /\bclient(s)?|customer(s)?\b/i, entity: { name: 'Clients', type: 'role' } },
+      { regex: /\b(new dad|becoming (a )?(dad|father)|going to be (a )?(dad|father)|fatherhood|parenthood)\b/i, entity: { name: 'Fatherhood', type: 'role' } },
+      { regex: /\bdad|father\b/i, entity: { name: isUserBecomingParent(transcript) ? 'Fatherhood' : 'Dad', type: isUserBecomingParent(transcript) ? 'role' : 'person' } },
+      { regex: /\bmom|mother\b/i, entity: { name: 'Mom', type: 'person' } },
+      { regex: /\bbrother\b/i, entity: { name: 'Brother', type: 'person' } },
+      { regex: /\bsister\b/i, entity: { name: 'Sister', type: 'person' } },
+      { regex: /\bpartner|wife|husband|boyfriend|girlfriend\b/i, entity: { name: 'Partner', type: 'person' } },
+      { regex: /\bfriend(s)?\b/i, entity: { name: 'Friends', type: 'role' } },
+      { regex: /\brunning|runner\b/i, entity: { name: 'Running', type: 'role' } },
+      { regex: /\bwriting|writer\b/i, entity: { name: 'Writing', type: 'role' } },
+      { regex: /\breading|reader\b/i, entity: { name: 'Reading', type: 'role' } },
+      { regex: /\bmusic\b/i, entity: { name: 'Music', type: 'role' } },
+      { regex: /\bhome|house|apartment\b/i, entity: { name: 'Home', type: 'role' } },
+      { regex: /\broutine(s)?|habit(s)?\b/i, entity: { name: 'Routine', type: 'role' } },
+    ]
 
-  for (const { regex, entity } of heuristics) {
-    if (regex.test(transcript) || regex.test(normalizedTranscript)) {
-      add(entity)
+    for (const { regex, entity } of heuristics) {
+      if (regex.test(transcript) || regex.test(normalizedTranscript)) {
+        add(entity)
+      }
     }
   }
 
-  return [...deduped.values()]
+  const namedCoworkers = extractNamedCoworkers(transcript)
+  const hobbyActivities = extractHobbyActivities(transcript)
+
+  for (const personName of namedCoworkers) {
+    add({ name: 'Coworkers', type: 'role' })
+    add({ name: personName, type: 'person' })
+  }
+
+  for (const activityName of hobbyActivities) {
+    add({ name: 'Hobbies', type: 'domain' })
+    add({ name: activityName, type: 'role' })
+  }
+
+  const namedCoworkerLabels = new Set(namedCoworkers.map((name) => normalizeLabel(name)))
+  const hobbyActivityLabels = new Set(hobbyActivities.map((name) => normalizeLabel(name)))
+
+  return [...deduped.values()].sort((left, right) => {
+    const leftLabel = normalizeLabel(left.name)
+    const rightLabel = normalizeLabel(right.name)
+    const leftPriority =
+      (namedCoworkerLabels.has(leftLabel) ? 1 : 0) +
+      (hobbyActivityLabels.has(leftLabel) ? 1 : 0)
+    const rightPriority =
+      (namedCoworkerLabels.has(rightLabel) ? 1 : 0) +
+      (hobbyActivityLabels.has(rightLabel) ? 1 : 0)
+    return rightPriority - leftPriority
+  })
+}
+
+function inferTagRelationships(
+  entities: Array<{ name: string; type: NodeType }>,
+  transcript: string
+): LLMResult['relationships'] {
+  const labels = new Set(entities.map((entity) => normalizeLabel(entity.name)))
+  const relationships: LLMResult['relationships'] = []
+
+  if (labels.has('coworkers')) {
+    relationships.push({ from: 'Coworkers', to: 'Work', type: 'part_of' })
+
+    for (const personName of extractNamedCoworkers(transcript)) {
+      if (labels.has(normalizeLabel(personName))) {
+        relationships.push({ from: personName, to: 'Coworkers', type: 'member_of' })
+      }
+    }
+  }
+
+  if (labels.has('fatherhood')) {
+    relationships.push({ from: 'Fatherhood', to: 'Self', type: 'part_of' })
+  }
+
+  for (const activityName of extractHobbyActivities(transcript)) {
+    if (labels.has(normalizeLabel(activityName))) {
+      relationships.push({ from: activityName, to: 'Hobbies', type: 'part_of' })
+    }
+  }
+
+  return relationships
+}
+
+function extractNamedCoworkers(transcript: string): string[] {
+  if (!/\b(coworker|coworkers|colleague|colleagues|teammate|teammates)\b/i.test(transcript)) {
+    return []
+  }
+
+  const names = new Set<string>()
+  const userLines = transcript
+    .split('\n')
+    .filter((line) => /^User:/i.test(line))
+    .map((line) => line.replace(/^User:\s*/i, ''))
+
+  for (const line of userLines) {
+    const directPatterns = [
+      /\b(?:coworker|colleague|teammate)\s+([a-z][a-z'-]{1,})\b/gi,
+      /\b([A-Z][a-z][a-z'-]{1,})\s+(?:is|has|seems|was|keeps|always|never)\b/g,
+    ]
+
+    for (const pattern of directPatterns) {
+      for (const match of line.matchAll(pattern)) {
+        addPersonCandidate(names, match[1])
+      }
+    }
+  }
+
+  return [...names].slice(0, 3)
+}
+
+function addPersonCandidate(names: Set<string>, rawName: string | undefined) {
+  if (!rawName) return
+  const normalized = normalizeLabel(rawName)
+  if (!normalized || PERSON_NAME_STOPWORDS.has(normalized)) return
+  names.add(displayName(normalized))
+}
+
+function displayName(normalized: string) {
+  return normalized
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function extractHobbyActivities(transcript: string): string[] {
+  const names = new Set<string>()
+  const userLines = transcript
+    .split('\n')
+    .filter((line) => /^User:/i.test(line))
+    .map((line) => line.replace(/^User:\s*/i, ''))
+
+  for (const line of userLines) {
+    const patterns = [
+      /\b(?:new\s+)?([a-z][a-z'-]{2,})\s+(?:hobby|practice|craft|project)\b/gi,
+      /\b(?:hobby|practice|craft)\s+(?:of\s+)?([a-z][a-z'-]{2,})\b/gi,
+      /\b(?:i\s+)?(?:love|enjoy|like|miss|started|start|picked up|got into|am into|i'm into|ive been into|i've been into)\s+([a-z][a-z'-]{2,})(?:\b|ing\b)/gi,
+    ]
+
+    for (const pattern of patterns) {
+      for (const match of line.matchAll(pattern)) {
+        addActivityCandidate(names, match[1])
+      }
+    }
+  }
+
+  return [...names].slice(0, 3)
+}
+
+function addActivityCandidate(names: Set<string>, rawName: string | undefined) {
+  if (!rawName) return
+  const normalized = normalizeLabel(rawName)
+  if (!normalized || ACTIVITY_STOPWORDS.has(normalized) || PERSON_NAME_STOPWORDS.has(normalized)) return
+  names.add(displayName(normalized))
 }
 
 function normalizeRelationshipType(value: string): string {
@@ -589,8 +739,62 @@ const EMOTION_LABELS = new Set([
   'love',
 ])
 
-function normalizeTagEntity(entity: LLMResult['entities'][number]) {
+const PERSON_NAME_STOPWORDS = new Set([
+  'i',
+  'im',
+  'ive',
+  'id',
+  'he',
+  'she',
+  'they',
+  'we',
+  'it',
+  'its',
+  'my',
+  'the',
+  'a',
+  'an',
+  'work',
+  'credit',
+  'coworker',
+  'coworkers',
+  'colleague',
+  'colleagues',
+  'teammate',
+  'teammates',
+  'mirror',
+  'user',
+])
+
+const ACTIVITY_STOPWORDS = new Set([
+  'this',
+  'that',
+  'new',
+  'old',
+  'the',
+  'and',
+  'for',
+  'with',
+  'about',
+  'work',
+  'life',
+  'hobby',
+  'practice',
+  'craft',
+  'project',
+  'gift',
+  'gifts',
+  'christmas',
+])
+
+function normalizeTagEntity(entity: LLMResult['entities'][number], transcript = '') {
   const normalized = normalizeLabel(entity.name)
+
+  if (isUserBecomingParent(transcript)) {
+    if (['dad', 'father', 'family', 'parent', 'parents', 'parenthood', 'fatherhood'].includes(normalized)) {
+      return { name: 'Fatherhood', type: 'role' as NodeType }
+    }
+  }
 
   if (normalized === 'coworker' || normalized === 'coworkers') {
     return { name: 'Coworkers', type: 'role' as NodeType }
@@ -606,4 +810,9 @@ function normalizeTagEntity(entity: LLMResult['entities'][number]) {
   }
 
   return entity
+}
+
+function isUserBecomingParent(transcript: string) {
+  return /\b(i'?m|i am|i'?ll|i will|going to be|becoming|about to be)\s+(a\s+)?(new\s+)?(dad|father|parent)\b/i.test(transcript) ||
+    /\b(new dad|new father|fatherhood|parenthood)\b/i.test(transcript)
 }

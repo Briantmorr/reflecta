@@ -28,6 +28,14 @@ type ResponseCategory =
   | 'default'
 
 const PATTERNS: Pattern[] = [
+  {
+    keywords: /\b(new dad|new father|becoming (a )?(dad|father|parent)|going to be (a )?(dad|father|parent)|fatherhood|parenthood)\b/i,
+    entity: { name: 'Fatherhood', type: 'role' },
+    edges: [
+      { from: 'Fatherhood', to: 'Self', type: 'part_of' },
+    ],
+    responseCategory: 'family',
+  },
   // ── Family ────────────────────────────────────────────────
   {
     keywords: /\b(dad|father|daddy)\b/i,

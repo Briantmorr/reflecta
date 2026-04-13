@@ -5,20 +5,17 @@ import {
   Send,
   Loader2,
   MessageCircle,
-  Settings2,
   Sparkles,
   RefreshCw,
   X,
-  PanelRightClose,
-  PanelRightOpen,
+  PlusCircle,
 } from 'lucide-react'
 import { Message, Conversation, ConversationTag } from '@/types'
-import { useSettings } from '@/lib/settings'
 
 interface ChatInterfaceProps {
   conversation: Conversation | null
   starterPrompt: string | null
-  onCreateConversation: () => Promise<void>
+  onCreateConversation: () => void
   onSendMessage: (content: string) => Promise<void>
   onUpdateTags: () => Promise<void>
   onRemoveTag: (nodeId: string) => Promise<void>
@@ -41,9 +38,9 @@ export default function ChatInterface({
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { openSettings, rightCollapsed, toggleRight } = useSettings()
 
   const messages = conversation?.messages ?? []
+  const isDraft = !conversation && !!starterPrompt
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -64,6 +61,10 @@ export default function ChatInterface({
     adjustTextareaHeight()
   }, [input, adjustTextareaHeight])
 
+  useEffect(() => {
+    setInput('')
+  }, [conversation?.id, starterPrompt])
+
   const handleSend = async () => {
     const trimmed = input.trim()
     if (!trimmed || isSending) return
@@ -78,49 +79,10 @@ export default function ChatInterface({
     }
   }
 
-  // ─── Empty state (no conversation selected) ──────────────
-  if (!conversation) {
-    if (layout === 'side' && rightCollapsed) {
-      return (
-        <aside
-          className="flex h-screen flex-col items-center justify-between py-5"
-          style={{
-            width: '72px',
-            flex: '0 0 auto',
-            background: 'var(--mirror-pane)',
-            borderLeft: '1px solid var(--mirror-border)',
-          }}
-        >
-          <button
-            type="button"
-            onClick={toggleRight}
-            className="mirror-focus-ring flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-            style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-            aria-label="Open conversation"
-          >
-            <PanelRightOpen size={16} />
-          </button>
-          <div
-            className="flex h-11 w-11 items-center justify-center rounded-2xl"
-            style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-          >
-            <MessageCircle size={18} />
-          </div>
-          <button
-            type="button"
-            onClick={openSettings}
-            className="mirror-focus-ring flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-            style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-            aria-label="Open settings"
-          >
-            <Settings2 size={16} />
-          </button>
-        </aside>
-      )
-    }
-
+  // ─── Empty state (no conversation and no draft starter) ──
+  if (!conversation && !starterPrompt) {
     return (
-        <aside
+      <aside
         className="relative flex h-screen flex-col"
         style={{
           width: layout === 'side' ? '380px' : 'auto',
@@ -129,93 +91,47 @@ export default function ChatInterface({
           borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
         }}
       >
-        <button
-          type="button"
-          onClick={openSettings}
-          className="mirror-focus-ring absolute right-6 top-6 flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-          style={{
-            background: 'var(--mirror-elevated)',
-            color: 'var(--mirror-secondary)',
-          }}
-          aria-label="Open settings"
-        >
-          <Settings2 size={16} />
-        </button>
         <div
           className={`flex flex-1 flex-col justify-center ${layout === 'side' ? 'px-6' : 'items-center px-8 text-center'}`}
         >
           <div className={`${layout === 'side' ? 'space-y-4' : 'text-center space-y-4 max-w-md'}`}>
-          <div
-            className={`flex h-14 w-14 items-center justify-center rounded-full ${layout === 'side' ? '' : 'mx-auto'}`}
-            style={{ background: 'var(--mirror-elevated)' }}
-          >
-            <MessageCircle size={22} style={{ color: 'var(--mirror-muted)' }} />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--mirror-text)' }}>
-              Start with one question
-            </h2>
-            <p className="text-sm leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
-              What's been on your mind lately?
-            </p>
-          </div>
-          <div>
-            <button
-              type="button"
-              onClick={onCreateConversation}
-              className="mirror-focus-ring rounded-full px-4 py-2 text-sm font-medium transition-colors"
-              style={{
-                background: 'var(--mirror-accent)',
-                color: 'var(--mirror-accent-contrast)',
-              }}
+            <div
+              className={`flex h-14 w-14 items-center justify-center rounded-full ${layout === 'side' ? '' : 'mx-auto'}`}
+              style={{ background: 'var(--mirror-elevated)' }}
             >
-              Start conversation
-            </button>
+              <MessageCircle size={22} style={{ color: 'var(--mirror-muted)' }} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--mirror-text)' }}>
+                Start with one question
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
+                What&apos;s been on your mind lately?
+              </p>
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={onCreateConversation}
+                className="mirror-focus-ring rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                style={{
+                  background: 'var(--mirror-accent)',
+                  color: 'var(--mirror-accent-contrast)',
+                }}
+              >
+                Start conversation
+              </button>
+            </div>
           </div>
-        </div>
         </div>
       </aside>
     )
   }
 
-  if (layout === 'side' && rightCollapsed) {
-    return (
-      <aside
-        className="flex h-screen flex-col items-center justify-between py-5"
-        style={{
-          width: '72px',
-          flex: '0 0 auto',
-          background: 'var(--mirror-pane)',
-          borderLeft: '1px solid var(--mirror-border)',
-        }}
-      >
-        <button
-          type="button"
-          onClick={toggleRight}
-          className="mirror-focus-ring flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-          style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-          aria-label="Open conversation"
-        >
-          <PanelRightOpen size={16} />
-        </button>
-        <div
-          className="flex h-11 w-11 items-center justify-center rounded-2xl"
-          style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-        >
-          <MessageCircle size={18} />
-        </div>
-        <button
-          type="button"
-          onClick={openSettings}
-          className="mirror-focus-ring flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-          style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
-          aria-label="Open settings"
-        >
-          <Settings2 size={16} />
-        </button>
-      </aside>
-    )
-  }
+  const headerTitle = isDraft
+    ? 'New reflection'
+    : conversation?.title ?? 'New Conversation'
+  const tags = conversation?.tags ?? []
 
   return (
     <aside
@@ -237,59 +153,43 @@ export default function ChatInterface({
       >
         <div>
           <div
-            className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em]"
+            className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em]"
             style={{ color: 'var(--mirror-secondary)' }}
           >
             Active reflection
           </div>
           <h2 className="text-base font-semibold" style={{ color: 'var(--mirror-text)' }}>
-            {conversation.title ?? 'New Conversation'}
+            {headerTitle}
           </h2>
           <p className="mt-1 text-xs" style={{ color: 'var(--mirror-muted)' }}>
-            {messages.length} {messages.length === 1 ? 'message' : 'messages'}
+            {isDraft ? 'Draft. Saved when you send.' : `${messages.length} ${messages.length === 1 ? 'message' : 'messages'}`}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {(conversation.tags ?? []).map((tag) => (
+          {tags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {tags.map((tag) => (
               <ConversationTagPill
                 key={tag.nodeId}
                 tag={tag}
                 onRemove={onRemoveTag}
               />
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {layout === 'side' && (
-            <button
-              type="button"
-              onClick={toggleRight}
-              className="mirror-focus-ring flex h-10 w-10 items-center justify-center rounded-full transition-colors"
-              style={{
-                background: 'var(--mirror-elevated)',
-                color: 'var(--mirror-secondary)',
-              }}
-              aria-label="Collapse conversation"
-            >
-              <PanelRightClose size={16} />
-            </button>
+              ))}
+            </div>
           )}
-          <div className="hidden items-center gap-1.5 sm:flex">
-            <Sparkles size={11} style={{ color: 'var(--mirror-accent)' }} />
-            <span className="text-xs" style={{ color: 'var(--mirror-secondary)' }}>
-              Guided reflection
-            </span>
-          </div>
+        </div>
+        <div className="flex items-center">
           <button
             type="button"
-            onClick={openSettings}
-            className="mirror-focus-ring flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+            onClick={onCreateConversation}
+            className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors"
             style={{
-              background: 'var(--mirror-elevated)',
-              color: 'var(--mirror-secondary)',
+              background: 'color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-elevated))',
+              color: 'var(--mirror-accent-hover)',
+              border: '1px solid var(--mirror-accent-dim)',
             }}
-            aria-label="Open settings"
+            aria-label="Start a new reflection"
           >
-            <Settings2 size={16} />
+            <PlusCircle size={14} />
+            New
           </button>
         </div>
       </div>
@@ -299,19 +199,6 @@ export default function ChatInterface({
         className={`${layout === 'side' ? 'flex-1 overflow-y-auto px-5 py-5' : 'flex-1 overflow-y-auto px-6 py-6 sm:px-8'}`}
       >
         <div className={`flex flex-col gap-6 ${layout === 'side' ? '' : 'mx-auto max-w-3xl'}`}>
-          <div className="rounded-[28px] border px-5 py-4 sm:px-6" style={{
-            background: 'var(--mirror-surface)',
-            borderColor: 'var(--mirror-border)',
-          }}>
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: 'var(--mirror-secondary)' }}>
-              <Sparkles size={11} style={{ color: 'var(--mirror-accent)' }} />
-              Guided reflection
-            </div>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--mirror-secondary)' }}>
-              Keep the conversation concrete. When you are ready, update the map to tag the note with a small set of durable life nodes.
-            </p>
-          </div>
-
           {messages.length === 0 && starterPrompt && (
             <MessageBubble role="assistant" content={starterPrompt} isStarter />
           )}
@@ -346,28 +233,41 @@ export default function ChatInterface({
             borderColor: 'var(--mirror-border)',
           }}
         >
-          <div className="mb-3 flex items-center justify-between px-2">
+          <div className="mb-3 flex items-center justify-between gap-3 px-2">
             <button
               type="button"
               onClick={onUpdateTags}
-              disabled={isUpdatingTags || messages.length === 0}
-              className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-medium transition-colors"
+              disabled={isDraft || isUpdatingTags || messages.length === 0}
+              className="mirror-focus-ring relative flex min-w-[108px] items-center justify-center gap-2 overflow-hidden rounded-full px-3 py-2 text-[11px] font-medium transition-colors"
               style={{
                 background:
-                  isUpdatingTags || messages.length === 0
+                  isUpdatingTags
+                    ? 'color-mix(in srgb, var(--mirror-accent) 14%, var(--mirror-elevated))'
+                    : isDraft || messages.length === 0
                     ? 'var(--mirror-elevated)'
                     : 'var(--mirror-accent-subtle)',
                 color:
-                  isUpdatingTags || messages.length === 0
+                  isDraft || messages.length === 0
                     ? 'var(--mirror-muted)'
                     : 'var(--mirror-accent)',
                 cursor:
-                  isUpdatingTags || messages.length === 0 ? 'not-allowed' : 'pointer',
+                  isDraft || messages.length === 0 ? 'not-allowed' : isUpdatingTags ? 'progress' : 'pointer',
               }}
             >
+              {isUpdatingTags && (
+                <span
+                  className="mirror-map-loading absolute inset-x-0 bottom-0 h-[2px]"
+                  aria-hidden="true"
+                />
+              )}
               <RefreshCw size={12} className={isUpdatingTags ? 'animate-spin' : ''} />
               {isUpdatingTags ? 'Updating map' : 'Update map'}
             </button>
+            {isUpdatingTags && (
+              <span className="text-[11px]" style={{ color: 'var(--mirror-muted)' }}>
+                Reading for durable nodes…
+              </span>
+            )}
           </div>
           <div className="flex items-end gap-3 rounded-3xl px-3 py-2" style={{ background: 'var(--mirror-elevated)' }}>
             <textarea

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Moon, PanelLeft, PanelRight, Settings2, Sun, X } from 'lucide-react'
+import { Moon, Settings2, Sun, X } from 'lucide-react'
 import { Theme, useSettings } from '@/lib/settings'
 
 const THEME_OPTIONS: Array<{
@@ -28,11 +28,7 @@ export default function SettingsModal() {
   const {
     theme,
     setTheme,
-    leftCollapsed,
-    rightCollapsed,
     settingsOpen,
-    toggleLeft,
-    toggleRight,
     closeSettings,
   } = useSettings()
 
@@ -145,81 +141,7 @@ export default function SettingsModal() {
             })}
           </div>
         </section>
-
-        <section>
-          <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em]" style={{ color: 'var(--mirror-secondary)' }}>
-            Panels
-          </div>
-          <div className="space-y-3">
-            <PanelToggle
-              icon={PanelLeft}
-              title="Conversation history"
-              description="Collapsed by default for a quieter workspace."
-              isCollapsed={leftCollapsed}
-              onToggle={toggleLeft}
-            />
-            <PanelToggle
-              icon={PanelRight}
-              title="Conversation panel"
-              description="Tuck the note and chat panel away to keep the map central."
-              isCollapsed={rightCollapsed}
-              onToggle={toggleRight}
-            />
-          </div>
-        </section>
       </div>
-    </div>
-  )
-}
-
-function PanelToggle({
-  icon: Icon,
-  title,
-  description,
-  isCollapsed,
-  onToggle,
-}: {
-  icon: typeof PanelLeft
-  title: string
-  description: string
-  isCollapsed: boolean
-  onToggle: () => void
-}) {
-  return (
-    <div
-      className="flex items-center justify-between gap-4 rounded-2xl p-4"
-      style={{
-        background: 'var(--mirror-elevated)',
-        border: '1px solid var(--mirror-border)',
-      }}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full"
-          style={{ background: 'var(--mirror-bg)', color: 'var(--mirror-secondary)' }}
-        >
-          <Icon size={15} />
-        </div>
-        <div>
-          <div className="text-sm font-medium" style={{ color: 'var(--mirror-text)' }}>
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
-            {description}
-          </p>
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="mirror-focus-ring rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-        style={{
-          background: isCollapsed ? 'var(--mirror-border)' : 'var(--mirror-accent)',
-          color: isCollapsed ? 'var(--mirror-secondary)' : 'var(--mirror-accent-contrast)',
-        }}
-      >
-        {isCollapsed ? 'Show' : 'Hide'}
-      </button>
     </div>
   )
 }
