@@ -31,6 +31,7 @@ Light mode default.
 - `Relationships` -> `Who am I connected to?`
 - `Hobbies` -> `What do I enjoy?`
 - `Lifestyle` -> `How do I live?`
+- domain icons reflect topic: self/person, health/activity, work/briefcase, relationships/heart, hobbies/palette, lifestyle/home
 
 Rules:
 
@@ -46,7 +47,10 @@ Rules:
 - dormant tier-one muted until they gain children
 - hover reacts only on connected links, not neighbors
 - selected nodes can highlight related structure
+- selecting nodes focuses ancestry, direct children, and direct neighbors; unrelated nodes/edges dim
 - first ring = snapped honeycomb-ish layout
+- edges draw as trimmed straight lines between node circles, with type-color gradients and pulse only on active highlighted paths
+- bottom legend uses larger pills/icons for `You`, `Theme`, `Person`, `Group`
 - chrome minimal, readable
 
 ## Conversation Mapping
@@ -64,6 +68,9 @@ Tagging rules:
 - prefer concrete people like `Jen`
 - prefer container nodes for groups: `Coworkers`, `Parents`, `Clients`
 - favor structures like `Work -> Coworkers -> Jen`
+- named coworkers should add both `Coworkers` and the named person when supported
+- hobbies/interests should map under `Hobbies` when explicitly named
+- distinguish user's own `Fatherhood` from user's `Dad`
 - keep map lean, resist node bloat
 
 ## Conversation UI
@@ -72,6 +79,7 @@ Tagging rules:
 - convo panel collapsible
 - map not collapsible
 - app opens into blank convo w/ one starter
+- draft reflection saved only when user sends
 - selecting graph nodes != creating convo record
 - user and Mirror messages visually distinct, stay in palette
 - convo tags at top of active convo

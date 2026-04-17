@@ -96,37 +96,40 @@ Example:
 User: "I've been thinking about how work has bled into everything lately."
 Response: "Work isn't staying in its lane — it sounds like it's reshaping the rest of your days too. What does that bleed look like on an ordinary evening?"`
 
-const DEFAULT_TAGGER_PROMPT = `You are tagging a completed conversation to update the user's life map.
+const DEFAULT_TAGGER_PROMPT = `You are tagging one completed conversation to update a user's life map. The map is a lean, durable graph of the people, roles, and domains that genuinely shape this person's life. Capture what is load-bearing in their life, not what was mentioned in passing.
 
-Your goal:
-- Tag the conversation with a few durable nodes.
-- Reuse existing nodes when possible.
-- Keep the map lean and hierarchical.
+Return 1 to 6 entities, never zero, plus the relationships that connect them.
 
-Rules:
-- Return 1 to 6 entities, never zero.
-- Do not return emotion nodes.
-- The only tier-one domains are Self, Health, Work, Relationships, Hobbies, and Lifestyle.
-- Tier-one domains should anchor the map. Everything else should build beneath them.
-- Do not return only tier-one domains when the conversation clearly contains specific subnodes.
-- If a specific subnode is present, include it. Good: Work + Software Engineering + AI. Bad: Work alone.
-- If the user clearly names a hobby, craft, sport, art form, practice, or interest, include it as a role node under Hobbies. Good: Hobbies -> Pottery. Bad: Hobbies alone.
-- Names are high-signal life-map nodes. If the user names a real person, strongly consider including that name as a person node.
-- If the user names a coworker, colleague, teammate, client, family member, partner, or friend, include the named person unless the mention is clearly incidental.
-- Prefer durable structure like Relationships, Work, Self, Lifestyle, Coworkers, Mom, Dad, Jen, Brother, Clients, Home, Routine, Fatherhood, Responsibility, Pottery.
-- When a specific person is known, prefer their actual name as a person node, not a generic label.
-- Do not conflate the user's parent with the user's own future parenthood. "My dad" means Dad; "I'm going to be a dad" means Fatherhood.
-- Use generic group nodes like Coworkers, Parents, Siblings, Clients as role/group containers.
-- Good: Work -> Coworkers -> Jen. Bad: Work -> Coworker.
-- Good: Work -> Coworkers -> Jason when Jason is described as a coworker.
-- If you include a named person like Jen or Jason and they belong to a group, also include the parent group node.
-- Avoid generic filler like "life", "feelings", "stress", "thoughts", "conversation".
-- Avoid creating new nodes unless the conversation clearly supports them; named people and explicitly named hobbies/interests usually clear this bar.
-- Favor structures like Relationships -> Dad, Mom or Work -> Coworkers -> Jen or Self -> Fatherhood or Hobbies -> Pottery or Lifestyle -> Home.
-- Relationships should be enough to place nodes in the map.
-- The user should be named "User".
-- If an existing node is a good fit, use its exact label.
-- Return valid JSON matching the schema exactly.`
+The only tier-one domains are Self, Health, Work, Relationships, Hobbies, Lifestyle. These anchor the map. Everything non-domain should connect to one, directly or via an intermediate role/group node. Do not invent new tier-one domains.
+
+High-signal heuristics (the more an entity meets, the stronger the signal):
+- Named: the user said a real, specific name — of a person, place, practice, or thing. Names are the single strongest node heuristic. Tag named people unless the mention is clearly incidental.
+- Repeated: the entity recurs across the conversation. Repetition indicates durability.
+- Specific: a concrete role, craft, activity, or context rather than an abstract feeling or generic category.
+- Structural: the entity organizes other entities (a group, a place, a recurring context).
+- Identity-shaping: the user describes this as part of who they are, what they do, who they love, where they live, or what they believe.
+
+Never return:
+- Emotions (stress, sadness, anger, fear, joy, pride, peace, love, hope, grief, etc.).
+- Generic filler (life, feelings, thoughts, things, stuff, situation, conversation, struggles, issues).
+- One-off mentions with no weight.
+- Historical, public, or symbolic figures referenced illustratively (Abraham, Job, Jesus, celebrities, book characters). They are not part of the user's personal graph.
+
+Structural rules:
+- If a specific subnode is present, include it and its tier-one anchor.
+- If a named person belongs to a group, include the group container (Coworkers, Clients, Parents, Siblings, Friends, Neighbors, Congregation).
+- Parent vs. self-as-parent: "my dad" -> Dad (person, under Relationships). "becoming a dad" / "new dad" -> Fatherhood (role, under Self). Same pattern for Mom / Motherhood. Never conflate.
+- Prefer actual names over generic labels when a name is known; keep the group container when it helps place the person.
+- A hobby, craft, sport, art form, practice, or area of study is a role node under its natural domain (Hobbies for recreation, Work for career activities, Self for internal practices like prayer or journaling).
+- The user entity is always labeled "User".
+- If an existing node is a good fit, reuse its exact label rather than creating a near-duplicate.
+
+Tag count calibration:
+- Short conversation on one theme: 2-3 tags.
+- Multi-turn conversation across several life areas: 4-6 tags.
+- Do not pad. Do not starve. Match the conversation's actual substance.
+
+Return valid JSON matching the schema exactly. Be decisive. The map is better lean and honest than wide and noisy.`
 
 type PromptFile = { prompt?: string }
 
