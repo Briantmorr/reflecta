@@ -1,8 +1,7 @@
 import { Graph, LLMResult, Message, NodeType } from '@/types'
 import { normalizeLabel } from '@/lib/utils'
 import { mockLLMCall } from '@/lib/mockLLM'
-import fs from 'node:fs'
-import path from 'node:path'
+import { PromptKey, resolvePrompt } from '@/lib/promptStore'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = 'gpt-5.4'
@@ -157,47 +156,45 @@ Tag count calibration:
 
 Return valid JSON matching the schema exactly. Be decisive. The map is better lean and honest than wide and noisy.`
 
-type PromptFile = { prompt?: string }
-
-const promptCache = new Map<string, string>()
-
-function readPromptFile(filename: string, fallback: string): string {
-  if (process.env.NODE_ENV === 'production' && promptCache.has(filename)) {
-    return promptCache.get(filename) ?? fallback
-  }
-
-  try {
-    const filePath = path.join(process.cwd(), 'prompts', filename)
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as PromptFile
-    const prompt =
-      typeof parsed.prompt === 'string' && parsed.prompt.trim().length > 0
-        ? parsed.prompt
-        : fallback
-
-    if (process.env.NODE_ENV === 'production') {
-      promptCache.set(filename, prompt)
-    }
-
-    return prompt
-  } catch {
-    return fallback
+export function getPromptFallbacks(): Record<PromptKey, string> {
+  return {
+    mirror_persona: DEFAULT_PERSONA,
+    conversation_turn: DEFAULT_SYSTEM_PROMPT,
+    conversation_tagger: DEFAULT_TAGGER_PROMPT,
+    node_insights: DEFAULT_NODE_INSIGHTS_PROMPT,
   }
 }
 
-function getPersona() {
-  return readPromptFile('mirror_persona.json', DEFAULT_PERSONA)
+async function getPrompt(key: PromptKey, filename: string, fallback: string) {
+  return resolvePrompt({ key, filename, fallback })
 }
 
-function getSystemPrompt() {
-  return getPersona() + '\n\n---\n\n' + readPromptFile('conversation-turn.json', DEFAULT_SYSTEM_PROMPT)
+async function getPersona() {
+  return getPrompt('mirror_persona', 'mirror_persona.json', DEFAULT_PERSONA)
 }
 
-function getTaggerPrompt() {
-  return getPersona() + '\n\n---\n\n' + readPromptFile('conversation-tagger.json', DEFAULT_TAGGER_PROMPT)
+async function getSystemPrompt() {
+  return (
+    (await getPersona()) +
+    '\n\n---\n\n' +
+    (await getPrompt('conversation_turn', 'conversation-turn.json', DEFAULT_SYSTEM_PROMPT))
+  )
 }
 
-function getNodeInsightsPrompt() {
-  return getPersona() + '\n\n---\n\n' + readPromptFile('node-insights.json', DEFAULT_NODE_INSIGHTS_PROMPT)
+async function getTaggerPrompt() {
+  return (
+    (await getPersona()) +
+    '\n\n---\n\n' +
+    (await getPrompt('conversation_tagger', 'conversation-tagger.json', DEFAULT_TAGGER_PROMPT))
+  )
+}
+
+async function getNodeInsightsPrompt() {
+  return (
+    (await getPersona()) +
+    '\n\n---\n\n' +
+    (await getPrompt('node_insights', 'node-insights.json', DEFAULT_NODE_INSIGHTS_PROMPT))
+  )
 }
 
 type InputMessage = {
@@ -237,7 +234,7 @@ export async function generateConversationTurn({
     userMessage,
     conversationMessages,
     graph,
-    systemPrompt: getSystemPrompt(),
+    systemPrompt: await getSystemPrompt(),
   })
 
   const response = await fetch(OPENAI_API_URL, {
@@ -368,7 +365,7 @@ export async function generateNodeInsights({
             {
               type: 'input_text',
               text: [
-                getNodeInsightsPrompt(),
+                await getNodeInsightsPrompt(),
                 nodes.length === 1
                   ? 'Node in focus:'
                   : 'Nodes in focus (insights should honor how the user relates to this combination):',
@@ -522,7 +519,7 @@ async function generateConversationTagsFromTranscript({
             {
               type: 'input_text',
               text: [
-                getTaggerPrompt(),
+                await getTaggerPrompt(),
                 'Existing nodes:',
                 existingNodes || '- none yet',
                 'Conversation transcript:',

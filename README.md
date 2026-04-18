@@ -87,6 +87,7 @@ Prompts live in `prompts/` as JSON files so you can iterate on tone and behavior
 | `mirror_persona.json` | Mirror's identity and voice — prepended to every LLM call |
 | `conversation-turn.json` | Per-message reflective replies and entity extraction |
 | `conversation-tagger.json` | Post-conversation tagging (the "Update map" step) |
+| `node-insights.json` | Node summary synthesis for selected graph nodes |
 
 Each file has one field:
 
@@ -135,6 +136,50 @@ Each file has one field:
 3. Check the response tone, length, and extracted entities
 4. If using mock LLM (no `OPENAI_API_KEY`), prompt changes have no effect — the mock returns canned responses
 
+### Dev prompt editor
+
+The settings/profile modal includes a temporary Prompt Editor for non-technical prompt iteration. It is disabled unless explicitly configured.
+
+This feature uses Firebase Admin on server-only API routes. The Firebase browser SDK config from the Firebase console identifies the project, but prompt persistence needs a service-account private key because the app writes Firestore from Next.js API routes.
+
+Firestore setup:
+
+1. In Firebase Console, open the `mirror-57d7a` project.
+2. Create/enable a Firestore database.
+3. Go to Project Settings -> Service accounts -> Generate new private key.
+4. Copy these fields from the downloaded JSON into `.env.local` and Vercel env vars:
+   - `project_id` -> `FIREBASE_PROJECT_ID`
+   - `client_email` -> `FIREBASE_CLIENT_EMAIL`
+   - `private_key` -> `FIREBASE_PRIVATE_KEY`
+   - Do not use `private_key_id`; that is only an identifier and will fail PEM parsing.
+5. Keep `FIREBASE_PRIVATE_KEY` wrapped in quotes. If entering it in a single-line env field, preserve escaped `\n` newlines.
+
+Required env:
+
+```bash
+ENABLE_PROMPT_EDITOR=true
+ENABLE_REMOTE_PROMPTS=true
+PROMPT_EDITOR_SECRET=shared-dev-secret
+FIREBASE_PROJECT_ID=mirror-57d7a
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...@mirror-57d7a.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+Behavior:
+
+- UI edits are saved as Firestore prompt versions and immediately activated.
+- `prompts/*.json` remain the readable repo fallback.
+- LLM calls resolve prompts as Firestore active version first, local JSON fallback second.
+- API access requires `x-prompt-editor-secret`; do not enable this on a public deployment without a shared secret.
+
+Seed Firestore from the committed prompt files:
+
+```bash
+npm run prompts:seed
+```
+
+The seed is idempotent: it reuses an existing matching version when possible, otherwise creates one version per prompt and activates it.
+
 ## Environment
 
 Main vars:
@@ -143,6 +188,8 @@ Main vars:
 - `DATABASE_URL`: local Prisma/SQLite path, default is `file:./dev.db`
 - `AUTH_ENABLED`: turns sign-in on or off
 - `AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: required only when auth is enabled
+- `ENABLE_PROMPT_EDITOR`, `ENABLE_REMOTE_PROMPTS`, `PROMPT_EDITOR_SECRET`: optional dev prompt editor
+- `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`: Firestore persistence for remote prompt versions
 
 See [.env.example](/Users/brianmorris/dev/projects/llm_journal/.env.example).
 

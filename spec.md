@@ -118,6 +118,7 @@ In node view:
 - Provider: OpenAI
 - Model: `gpt-5.4`
 - API: Responses API
+- prompt resolution order: Firestore active version when enabled, then local `prompts/*.json`, then hardcoded fallback
 
 Turn responses should:
 
@@ -127,6 +128,17 @@ Turn responses should:
 - explore user's life with them, not lecture
 - ask at most one grounded follow-up
 - no research/stats unless asked
+
+## Prompt Editor
+
+- temporary dev feature under settings/profile
+- gated by `ENABLE_PROMPT_EDITOR=true` and `PROMPT_EDITOR_SECRET`
+- remote prompt persistence uses Firestore via Firebase Admin on server routes only
+- editable prompts: persona, conversation turn, conversation tagger, node insights
+- prompts render as readable multiline text, not escaped JSON
+- saving creates a new version and activates it
+- previous versions can be loaded into the editor or re-activated
+- local `prompts/*.json` stay committed fallback defaults
 
 ## Import Snapshot
 
