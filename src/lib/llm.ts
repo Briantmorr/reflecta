@@ -28,7 +28,7 @@ export interface NodeInsightResult {
 const DEFAULT_NODE_INSIGHTS_PROMPT = `You are reading every conversation the user has had that touches one or more specific nodes on their life map. Notice things the user hasn't noticed. Connect dots across conversations. Surface how seemingly separate parts of their life are linked.
 
 Return exactly:
-- summary: one sentence (max 24 words), second person ("You..."), naming the through-line, tension, or bridge. Not the topic.
+- summary: 2 to 3 sentences (~40 to 70 words), second person ("You..."), naming the through-line, tension, or posture AND making at least one explicit connection between this node and another part of the user's life that appears in the transcripts. Go past the topic.
 - bullets: 3 to 5 short observations, 2-7 words each, Title-like phrasing, no trailing period. Each bullet is a pattern, tension, or connection — not an event or raw emotion. Prefer fewer, stronger bullets.
 
 When multiple nodes are in focus, the bullets should especially illuminate the relationship between those nodes. Every bullet must be traceable to what the user actually said. Do not invent. Do not coach. Do not restate the node names. If signal is thin, say so honestly.`
