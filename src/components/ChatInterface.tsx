@@ -9,6 +9,8 @@ import {
   RefreshCw,
   X,
   PlusCircle,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react'
 import { Message, Conversation, ConversationTag } from '@/types'
 
@@ -36,11 +38,13 @@ export default function ChatInterface({
   layout = 'main',
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('')
+  const [isExpanded, setIsExpanded] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const messages = conversation?.messages ?? []
   const isDraft = !conversation && !!starterPrompt
+  const sideWidth = isExpanded ? 'min(760px, 52vw)' : '380px'
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -85,7 +89,7 @@ export default function ChatInterface({
       <aside
         className="relative flex h-screen flex-col"
         style={{
-          width: layout === 'side' ? '380px' : 'auto',
+          width: layout === 'side' ? sideWidth : 'auto',
           flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
           background: 'var(--mirror-pane)',
           borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
@@ -137,7 +141,7 @@ export default function ChatInterface({
     <aside
       className="flex h-screen min-w-0 flex-col overflow-hidden"
       style={{
-        width: layout === 'side' ? '380px' : 'auto',
+        width: layout === 'side' ? sideWidth : 'auto',
         flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
         background: 'var(--mirror-pane)',
         borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
@@ -151,7 +155,7 @@ export default function ChatInterface({
             'linear-gradient(180deg, color-mix(in srgb, var(--mirror-nav) 92%, transparent), var(--mirror-pane))',
         }}
       >
-        <div>
+        <div className="min-w-0 pr-3">
           <div
             className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em]"
             style={{ color: 'var(--mirror-secondary)' }}
@@ -176,7 +180,24 @@ export default function ChatInterface({
             </div>
           )}
         </div>
-        <div className="flex items-center">
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {layout === 'side' && (
+            <button
+              type="button"
+              onClick={() => setIsExpanded((expanded) => !expanded)}
+              className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors"
+              style={{
+                background: 'var(--mirror-elevated)',
+                color: 'var(--mirror-secondary)',
+                border: '1px solid var(--mirror-border)',
+              }}
+              aria-label={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
+              title={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
+            >
+              {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              {isExpanded ? 'Compact' : 'Expand'}
+            </button>
+          )}
           <button
             type="button"
             onClick={onCreateConversation}
@@ -198,13 +219,13 @@ export default function ChatInterface({
         ref={scrollRef}
         className={`${layout === 'side' ? 'flex-1 overflow-y-auto px-5 py-5' : 'flex-1 overflow-y-auto px-6 py-6 sm:px-8'}`}
       >
-        <div className={`flex flex-col gap-6 ${layout === 'side' ? '' : 'mx-auto max-w-3xl'}`}>
+        <div className={`flex flex-col gap-6 ${layout === 'side' && isExpanded ? 'mx-auto w-full max-w-2xl' : layout === 'side' ? '' : 'mx-auto max-w-3xl'}`}>
           {messages.length === 0 && starterPrompt && (
-            <MessageBubble role="assistant" content={starterPrompt} isStarter />
+            <MessageBubble role="assistant" content={starterPrompt} isStarter wide={isExpanded} />
           )}
 
           {messages.map((m) => (
-            <MessageBubble key={m.id} role={m.role} content={m.content} />
+            <MessageBubble key={m.id} role={m.role} content={m.content} wide={isExpanded} />
           ))}
 
           {isSending && (
@@ -227,7 +248,7 @@ export default function ChatInterface({
         }}
       >
         <div
-          className={`rounded-[28px] border p-3 shadow-sm ${layout === 'side' ? '' : 'mx-auto max-w-3xl'}`}
+          className={`rounded-[28px] border p-3 shadow-sm ${layout === 'side' && isExpanded ? 'mx-auto max-w-2xl' : layout === 'side' ? '' : 'mx-auto max-w-3xl'}`}
           style={{
             background: 'var(--mirror-surface)',
             borderColor: 'var(--mirror-border)',
@@ -317,16 +338,17 @@ interface MessageBubbleProps {
   role: Message['role']
   content: string
   isStarter?: boolean
+  wide?: boolean
 }
 
-function MessageBubble({ role, content, isStarter }: MessageBubbleProps) {
+function MessageBubble({ role, content, isStarter, wide = false }: MessageBubbleProps) {
   const isUser = role === 'user'
   const roleLabel = isStarter ? 'Starter' : isUser ? 'You' : 'Mirror'
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className="max-w-[85%] rounded-[26px] border px-4 py-3 sm:px-5"
+        className={`${wide ? 'max-w-[96%]' : 'max-w-[85%]'} rounded-[26px] border px-4 py-3 sm:px-5`}
         style={{
           background: isUser
             ? 'var(--mirror-user-message-bg)'
