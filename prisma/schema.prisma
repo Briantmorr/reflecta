@@ -64,6 +64,10 @@ model Conversation {
   title     String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  sourceRef   String?   @unique
+  sourceType  String?
+  sourceName  String?
+  importedAt  DateTime?
 
   // Owner is nullable so local-dev (AUTH_ENABLED=false) can create
   // conversations without a user. When auth is on we always set it.

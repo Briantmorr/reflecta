@@ -180,7 +180,7 @@ export default function ConversationList({
                   }}
                 >
                   <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
-                    Node conversations
+                    Related conversations
                   </span>
                   <span className="flex items-center gap-1.5 text-[11px]">
                     {conversations.length}

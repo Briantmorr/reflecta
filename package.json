@@ -5,17 +5,19 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
-    "vercel-build": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('prisma/dev.db', { force: true })\" && DATABASE_URL=file:./prisma/dev.db prisma generate && DATABASE_URL=file:./prisma/dev.db prisma db push --force-reset --accept-data-loss && next build",
+    "vercel-build": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\" && DATABASE_URL=file:./prisma/dev.db prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "smoke:deploy": "bash .codex/skills/reflecta-deploy-check/scripts/smoke.sh https://reflecta-delta.vercel.app",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
+    "db:push:snapshot": "DATABASE_URL=file:./prisma/dev.db prisma db push",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:seed": "tsx scripts/seed.ts",
     "db:reset": "prisma db push --force-reset && tsx scripts/seed.ts",
-    "db:reset-empty": "prisma db push --force-reset --accept-data-loss"
+    "db:reset-empty": "prisma db push --force-reset --accept-data-loss",
+    "import:conversations": "tsx scripts/import.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

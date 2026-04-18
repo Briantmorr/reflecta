@@ -38,7 +38,8 @@ export async function ensureUserNode(): Promise<string> {
 }
 
 export async function upsertNode(rawLabel: string, type: NodeType): Promise<string> {
-  const normalized = normalizeLabel(rawLabel)
+  const canonicalLabel = canonicalGraphLabel(rawLabel)
+  const normalized = normalizeLabel(canonicalLabel)
   const existing = await prisma.graphNode.findUnique({ where: { label: normalized } })
 
   if (existing) {
@@ -56,6 +57,18 @@ export async function upsertNode(rawLabel: string, type: NodeType): Promise<stri
   return created.id
 }
 
+const GRAPH_LABEL_ALIASES: Record<string, string> = {
+  helping: 'Service',
+  'helping others': 'Service',
+  proving: 'Desire For Approval',
+  marriageminded: 'Marriage Minded Dating',
+  'marriageminded dating': 'Marriage Minded Dating',
+}
+
+function canonicalGraphLabel(rawLabel: string) {
+  return GRAPH_LABEL_ALIASES[normalizeLabel(rawLabel)] ?? rawLabel
+}
+
 export async function applyConversationMap(
   result: LLMResult,
   conversationId: string
@@ -71,6 +84,7 @@ export async function applyConversationMap(
   for (const entity of taggableEntities) {
     const nodeId = await upsertNode(entity.name, entity.type)
     nodeIdsByLabel.set(normalizeLabel(entity.name), nodeId)
+    nodeIdsByLabel.set(normalizeLabel(canonicalGraphLabel(entity.name)), nodeId)
     taggedNodeIds.add(nodeId)
     await ensureSupportingStructure(entity.name, entity.type, nodeId, userNodeId, nodeIdsByLabel)
   }
@@ -99,6 +113,14 @@ export async function applyConversationMap(
       create: { fromId, toId, relationship: relationship.type },
       update: {},
     })
+
+    if (relationship.type === 'member_of') {
+      const parentDomain = inferTierOneDomain(relationship.to, 'role')
+      if (parentDomain) {
+        const parentDomainId = nodeIdsByLabel.get(normalizeLabel(parentDomain))
+        await removeRelationship(fromId, parentDomainId, 'part_of')
+      }
+    }
   }
 
   await prisma.conversationNode.deleteMany({ where: { conversationId } })
@@ -335,10 +357,11 @@ async function ensureSupportingStructure(
   userNodeId: string,
   nodeIdsByLabel: Map<string, string>
 ) {
-  const normalized = normalizeLabel(label)
+  const canonicalLabel = canonicalGraphLabel(label)
+  const normalized = normalizeLabel(canonicalLabel)
   if (type === 'domain' || normalized === 'user') return
 
-  const domainLabel = inferTierOneDomain(label, type)
+  const domainLabel = inferTierOneDomain(canonicalLabel, type)
   if (!domainLabel) return
 
   const domainId = await getOrCreateNamedNode(domainLabel, 'domain', nodeIdsByLabel)
@@ -349,7 +372,7 @@ async function ensureSupportingStructure(
     return
   }
 
-  const roleLabel = inferRoleContainer(label)
+  const roleLabel = inferRoleContainer(canonicalLabel)
   if (roleLabel) {
     const roleId = await getOrCreateNamedNode(roleLabel, 'role', nodeIdsByLabel)
     await upsertRelationship(roleId, domainId, 'part_of')
@@ -367,13 +390,8 @@ async function ensurePersonRoleContainers(
   const roleLabels = new Set(
     entities
       .filter((entity) => entity.type === 'role')
-      .map((entity) => normalizeLabel(entity.name))
+      .map((entity) => normalizeLabel(canonicalGraphLabel(entity.name)))
   )
-
-  if (!roleLabels.has('coworkers')) return
-
-  const coworkersId = nodeIdsByLabel.get('coworkers')
-  if (!coworkersId) return
 
   for (const person of entities.filter((entity) => entity.type === 'person')) {
     const normalized = normalizeLabel(person.name)
@@ -382,7 +400,17 @@ async function ensurePersonRoleContainers(
     const personId = nodeIdsByLabel.get(normalized)
     if (!personId) continue
 
-    await upsertRelationship(personId, coworkersId, 'member_of')
+    if (roleLabels.has('coworkers')) {
+      const coworkersId = nodeIdsByLabel.get('coworkers')
+      if (coworkersId) {
+        await upsertRelationship(personId, coworkersId, 'member_of')
+        await removeRelationship(personId, nodeIdsByLabel.get('relationships'), 'part_of')
+        continue
+      }
+    }
+
+    // Other person containers (Friends, Dating, etc.) require transcript-level
+    // evidence and are inferred in src/lib/llm.ts. Do not guess here.
   }
 }
 
@@ -416,6 +444,11 @@ async function upsertRelationship(fromId: string, toId: string, relationship: st
   })
 }
 
+async function removeRelationship(fromId: string, toId: string | undefined, relationship: string) {
+  if (!toId) return
+  await prisma.graphEdge.deleteMany({ where: { fromId, toId, relationship } })
+}
+
 function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ONE_DOMAINS)[number] | null {
   const normalized = normalizeLabel(label)
 
@@ -440,6 +473,16 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'growth',
     'mindset',
     'philosophy',
+    'faith',
+    'prayer',
+    'church',
+    'journaling',
+    'childhood trauma',
+    'worship',
+    'proving',
+    'support',
+    'service',
+    'desire for approval',
   ])
   if (selfLabels.has(normalized)) return 'Self'
 
@@ -461,6 +504,11 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'girlfriend',
     'friend',
     'friends',
+    'marriage',
+    'marriage minded dating',
+    'dating',
+    'past relationship',
+    'marriage readiness',
   ])
   if (relationshipLabels.has(normalized)) return 'Relationships'
 
@@ -482,7 +530,6 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'community',
     'neighbor',
     'neighbors',
-    'church',
     'group',
     'club',
     'volunteer',
@@ -505,16 +552,24 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'architecture',
     'ai',
     'hackathons',
+    'writing',
+    'writer',
+    'job search',
+    'northbridge consulting',
+    'project management',
+    'product management',
+    'product',
   ])
   if (workLabels.has(normalized)) return 'Work'
 
   const hobbyLabels = new Set([
     'running',
-    'writing',
     'reading',
     'music',
   ])
   if (hobbyLabels.has(normalized)) return 'Hobbies'
+
+  if (type === 'person') return 'Relationships'
 
   if (type === 'role') {
     if (normalized.includes('cowork')) return 'Work'

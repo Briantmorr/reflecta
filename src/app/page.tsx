@@ -274,12 +274,14 @@ export default function Home() {
         return nextNodes.length > 0 ? { nodes: nextNodes } : null
       })
       if (!options?.additive) {
-        setActiveConversation(null)
-        setStarterPrompt(node.type === 'user' ? DEFAULT_STARTER_QUESTION : buildNodeStarterQuestion(node.label))
+        setStarterPrompt((currentStarter) => {
+          if (activeConversation) return currentStarter
+          return node.type === 'user' ? DEFAULT_STARTER_QUESTION : buildNodeStarterQuestion(node.label)
+        })
       }
       openLeft()
     },
-    [activeConversation?.tags, graph.nodes, openLeft]
+    [activeConversation, graph.nodes, openLeft]
   )
 
   useEffect(() => {

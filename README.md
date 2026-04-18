@@ -57,13 +57,26 @@ npm run db:reset
 
 # Seed the current DB without resetting
 npm run db:seed
+
+# Apply schema changes to the committed Vercel/demo snapshot DB
+npm run db:push:snapshot
+
+# Import seed_conversations/ into prisma/dev.db
+npm run import:conversations
+
+# Re-import from scratch, replacing prior imported conversations
+npm run import:conversations -- --force
 ```
 
 By default:
 
 - local auth is off
 - SQLite is used
+- local dev reads `DATABASE_URL`, normally `file:./dev.db`
+- Vercel/demo deploys ship the committed snapshot at `prisma/dev.db`
 - if `OPENAI_API_KEY` is missing, the app falls back to the mock LLM
+
+If you change the Prisma schema and already have a local `dev.db`, run `npm run db:push` before restarting `npm run dev`. This preserves local conversations while adding nullable columns/indexes. To preview the committed import snapshot locally, start dev with `DATABASE_URL=file:./prisma/dev.db npm run dev` or temporarily point `.env` at `file:./prisma/dev.db`.
 
 ## Prompt Editing
 
@@ -139,7 +152,8 @@ Vercel currently uses bundled SQLite for preview/demo environments.
 
 Current behavior:
 
-- build creates `prisma/dev.db` from schema only
+- `prisma/dev.db` is committed as the deploy snapshot
+- imports are run locally with `npm run import:conversations`
 - runtime copies that bundled DB to `/tmp/dev.db`
 - data is writable during runtime but still ephemeral across cold starts
 

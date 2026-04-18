@@ -256,11 +256,51 @@ export async function generateConversationTags({
   conversationMessages: Message[]
   graph: Graph
 }): Promise<LLMResult> {
-  const transcript = conversationMessages
+  const transcript = buildConversationTranscript(conversationMessages)
+
+  return generateConversationTagsFromTranscript({ transcript, graph })
+}
+
+export async function generateImportConversationTags({
+  conversationMessages,
+  graph,
+  maxTranscriptChars = 12_000,
+}: {
+  conversationMessages: Message[]
+  graph: Graph
+  maxTranscriptChars?: number
+}): Promise<LLMResult> {
+  const transcript = buildConversationTranscript(conversationMessages)
+  const trimmedTranscript = trimImportTranscript(transcript, maxTranscriptChars)
+  const hintedTranscript = [
+    "(Note: the author of this transcript is the User. If a first name appears as the author's own name, do not tag it as a separate person node. Tag only other people the author discusses.)",
+    trimmedTranscript,
+  ].join('\n\n')
+
+  return generateConversationTagsFromTranscript({ transcript: hintedTranscript, graph })
+}
+
+function buildConversationTranscript(conversationMessages: Message[]) {
+  return conversationMessages
     .filter((message) => message.role !== 'system')
     .map((message) => `${message.role === 'assistant' ? 'Mirror' : 'User'}: ${message.content}`)
     .join('\n')
+}
 
+function trimImportTranscript(transcript: string, maxTranscriptChars: number) {
+  if (transcript.length <= maxTranscriptChars) return transcript
+  const start = transcript.slice(0, 4_000)
+  const end = transcript.slice(-6_000)
+  return `${start}\n\n[...trimmed middle...]\n\n${end}`
+}
+
+async function generateConversationTagsFromTranscript({
+  transcript,
+  graph,
+}: {
+  transcript: string
+  graph: Graph
+}): Promise<LLMResult> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     return sanitizeTagResult(mockLLMCall(transcript), transcript)
@@ -500,24 +540,20 @@ function sanitizeLLMResult(result: LLMResult): LLMResult {
 
 function sanitizeTagResult(result: LLMResult, transcript = ''): LLMResult {
   const sanitized = sanitizeLLMResult(result)
+  const userTranscript = userOnlyTranscript(transcript)
+  const hasExplicitHobby = extractHobbyActivities(transcript).length > 0 || /\b(hobby|hobbies|craft|sport|recreation|for fun)\b/i.test(userTranscript)
   const entities = sanitized.entities
     .filter((entity) => entity.type !== 'emotion')
     .map((entity) => normalizeTagEntity(entity, transcript))
-  const enrichedEntities = enrichTagEntities(entities, transcript).slice(0, 6)
-  const enrichedEntityLabels = new Set(enrichedEntities.map((entity) => normalizeLabel(entity.name)))
-  const inferredRelationships = inferTagRelationships(enrichedEntities, transcript)
-  const relationships = sanitized.relationships
-    .filter((relationship) => {
-      const from = normalizeLabel(relationship.from)
-      const to = normalizeLabel(relationship.to)
-      return !EMOTION_LABELS.has(from) && !EMOTION_LABELS.has(to)
-    })
-    .filter((relationship) => {
-      const from = normalizeLabel(relationship.from)
-      const to = normalizeLabel(relationship.to)
-      return enrichedEntityLabels.has(from) && enrichedEntityLabels.has(to)
-    })
-    .concat(inferredRelationships)
+    .filter((entity) => !TAG_ENTITY_STOPWORDS.has(normalizeLabel(entity.name)))
+    .filter((entity) => normalizeLabel(entity.name) !== 'hobbies' || hasExplicitHobby)
+    .filter((entity) => isSupportedByUserTranscript(entity, userTranscript))
+  const enrichedEntities = enrichTagEntities(entities, transcript)
+    .filter((entity) => !TAG_ENTITY_STOPWORDS.has(normalizeLabel(entity.name)))
+    .filter((entity) => normalizeLabel(entity.name) !== 'hobbies' || hasExplicitHobby)
+    .filter((entity) => isSupportedByUserTranscript(entity, userTranscript))
+    .slice(0, 6)
+  const relationships = inferTagRelationships(enrichedEntities, transcript)
     .filter((relationship, index, list) => {
       const key = `${normalizeLabel(relationship.from)}:${relationship.type}:${normalizeLabel(relationship.to)}`
       return list.findIndex((candidate) => {
@@ -619,6 +655,45 @@ function enrichTagEntities(
   })
 }
 
+function userOnlyTranscript(transcript: string) {
+  return transcript
+    .split('\n')
+    .filter((line) => /^User:/i.test(line))
+    .map((line) => line.replace(/^User:\s*/i, ''))
+    .join('\n')
+}
+
+function isSupportedByUserTranscript(
+  entity: { name: string; type: NodeType },
+  userTranscript: string
+) {
+  const normalized = normalizeLabel(entity.name)
+  const normalizedUserTranscript = normalizeLabel(userTranscript)
+
+  if (entity.type === 'domain') {
+    if (normalized === 'hobbies') return /\b(hobby|hobbies|craft|sport|recreation|for fun)\b/i.test(userTranscript)
+    if (normalized === 'health') return /\b(health|body|sleep|sick|doctor|medical|exercise|run|running)\b/i.test(userTranscript)
+    if (normalized === 'lifestyle') return /\b(home|house|apartment|routine|habit|schedule|travel|airport)\b/i.test(userTranscript)
+    if (normalized === 'relationships') return /\b(dad|mom|father|mother|sister|brother|friend|partner|dating|marry|married|marriage|men|women|woman|man|parents)\b/i.test(userTranscript)
+    return true
+  }
+
+  if (normalized === 'architecture') return /\barchitect|architecture\b/i.test(userTranscript)
+  if (normalized === 'clients') return /\bclient|clients|customer|customers\b/i.test(userTranscript)
+  if (normalized === 'physician') return false
+  if (normalized === 'northbridge consulting') return /\bnorthbridge\b/i.test(userTranscript)
+  if (normalized === 'project management') return /\bproject[- ]oriented|project management|project manager|project roles?\b/i.test(userTranscript)
+  if (normalized === 'product management') return /\bproduct management|product manager|product roles?\b/i.test(userTranscript)
+  if (normalized === 'reading') return /\breading|read\b/i.test(userTranscript)
+  if (normalized === 'friends') return /\bfriend|friends\b/i.test(userTranscript)
+  if (entity.type === 'person' && !normalizedUserTranscript.includes(normalized)) return false
+  if (['running', 'music', 'reading'].includes(normalized)) {
+    return normalizedUserTranscript.includes(normalized)
+  }
+
+  return true
+}
+
 function inferTagRelationships(
   entities: Array<{ name: string; type: NodeType }>,
   transcript: string
@@ -640,9 +715,32 @@ function inferTagRelationships(
     relationships.push({ from: 'Fatherhood', to: 'Self', type: 'part_of' })
   }
 
-  for (const activityName of extractHobbyActivities(transcript)) {
-    if (labels.has(normalizeLabel(activityName))) {
-      relationships.push({ from: activityName, to: 'Hobbies', type: 'part_of' })
+  if (labels.has('friends')) {
+    relationships.push({ from: 'Friends', to: 'Relationships', type: 'part_of' })
+
+    for (const personName of extractNamedFriends(transcript)) {
+      if (labels.has(normalizeLabel(personName))) {
+        relationships.push({ from: personName, to: 'Friends', type: 'member_of' })
+      }
+    }
+  }
+
+  if (labels.has('dating')) {
+    relationships.push({ from: 'Dating', to: 'Relationships', type: 'part_of' })
+
+    for (const entity of entities) {
+      const normalized = normalizeLabel(entity.name)
+      if (entity.type === 'person' && !isFamilyTag(normalized)) {
+        relationships.push({ from: entity.name, to: 'Dating', type: 'member_of' })
+      }
+    }
+  }
+
+  if (/\b(hobby|hobbies|craft|sport|recreation|for fun)\b/i.test(userOnlyTranscript(transcript))) {
+    for (const activityName of extractHobbyActivities(transcript)) {
+      if (labels.has(normalizeLabel(activityName))) {
+        relationships.push({ from: activityName, to: 'Hobbies', type: 'part_of' })
+      }
     }
   }
 
@@ -676,6 +774,37 @@ function extractNamedCoworkers(transcript: string): string[] {
   return [...names].slice(0, 3)
 }
 
+function extractNamedFriends(transcript: string): string[] {
+  if (!/\b(friend|friends)\b/i.test(transcript)) {
+    return []
+  }
+
+  const names = new Set<string>()
+  const userLines = transcript
+    .split('\n')
+    .filter((line) => /^User:/i.test(line))
+    .map((line) => line.replace(/^User:\s*/i, ''))
+
+  for (const line of userLines) {
+    const patterns = [
+      /\bfriend(?:\s+of\s+mine)?\s+named\s+([A-Z][a-z][a-z'-]{1,})\b/g,
+      /\bfriend\s+([A-Z][a-z][a-z'-]{1,})\b/g,
+    ]
+
+    for (const pattern of patterns) {
+      for (const match of line.matchAll(pattern)) {
+        addPersonCandidate(names, match[1])
+      }
+    }
+  }
+
+  return [...names].slice(0, 3)
+}
+
+function isFamilyTag(normalized: string) {
+  return ['dad', 'mom', 'father', 'mother', 'brother', 'sister', 'parents', 'siblings', 'partner'].includes(normalized)
+}
+
 function addPersonCandidate(names: Set<string>, rawName: string | undefined) {
   if (!rawName) return
   const normalized = normalizeLabel(rawName)
@@ -699,9 +828,9 @@ function extractHobbyActivities(transcript: string): string[] {
 
   for (const line of userLines) {
     const patterns = [
-      /\b(?:new\s+)?([a-z][a-z'-]{2,})\s+(?:hobby|practice|craft|project)\b/gi,
-      /\b(?:hobby|practice|craft)\s+(?:of\s+)?([a-z][a-z'-]{2,})\b/gi,
-      /\b(?:i\s+)?(?:love|enjoy|like|miss|started|start|picked up|got into|am into|i'm into|ive been into|i've been into)\s+([a-z][a-z'-]{2,})(?:\b|ing\b)/gi,
+      /\b(?:new\s+)?([a-z][a-z'-]{2,})\s+(?:hobby|craft)\b/gi,
+      /\b(?:hobby|craft)\s+(?:of\s+)?([a-z][a-z'-]{2,})\b/gi,
+      /\b(?:i\s+)?(?:love|enjoy|like|miss|started|start|picked up)\s+([a-z][a-z'-]{2,})(?:\b|ing\b)/gi,
     ]
 
     for (const pattern of patterns) {
@@ -751,14 +880,25 @@ const PERSON_NAME_STOPWORDS = new Set([
   'she',
   'they',
   'we',
+  'you',
   'it',
   'its',
   'my',
+  'myself',
   'the',
   'a',
   'an',
   'work',
   'credit',
+  'jesus',
+  'god',
+  'christ',
+  'lord',
+  'holy',
+  'spirit',
+  'abraham',
+  'job',
+  'ava',
   'coworker',
   'coworkers',
   'colleague',
@@ -779,6 +919,23 @@ const ACTIVITY_STOPWORDS = new Set([
   'for',
   'with',
   'about',
+  'one',
+  'two',
+  'into',
+  'say',
+  'said',
+  'not',
+  'when',
+  'there',
+  'things',
+  'thing',
+  'lifes',
+  'life',
+  'lives',
+  'present',
+  'patterns',
+  'pattern',
+  'multiple',
   'work',
   'life',
   'hobby',
@@ -790,8 +947,77 @@ const ACTIVITY_STOPWORDS = new Set([
   'christmas',
 ])
 
+const TAG_ENTITY_STOPWORDS = new Set([
+  'i',
+  'im',
+  'ive',
+  'id',
+  'he',
+  'she',
+  'they',
+  'we',
+  'you',
+  'it',
+  'its',
+  'my',
+  'myself',
+  'the',
+  'a',
+  'an',
+  'credit',
+  'jesus',
+  'god',
+  'christ',
+  'lord',
+  'holy',
+  'spirit',
+  'abraham',
+  'job',
+  'ava',
+  'mirror',
+  'user',
+  'one',
+  'two',
+  'into',
+  'say',
+  'said',
+  'not',
+  'when',
+  'there',
+  'things',
+  'thing',
+  'lifes',
+  'life',
+  'lives',
+  'present',
+  'patterns',
+  'pattern',
+  'multiple',
+  'physician',
+  'consulting',
+  'product',
+  'hard',
+  'thoughts',
+  'feelings',
+  'conversation',
+  'situation',
+  'stuff',
+  'issues',
+  'struggles',
+])
+
 function normalizeTagEntity(entity: LLMResult['entities'][number], transcript = '') {
   const normalized = normalizeLabel(entity.name)
+
+  if (normalized === 'marriageminded dating') {
+    return { name: 'Marriage Minded Dating', type: 'role' as NodeType }
+  }
+  if (normalized === 'helping' || normalized === 'helping others') {
+    return { name: 'Service', type: 'role' as NodeType }
+  }
+  if (normalized === 'proving') {
+    return { name: 'Desire For Approval', type: 'role' as NodeType }
+  }
 
   if (isUserBecomingParent(transcript)) {
     if (['dad', 'father', 'family', 'parent', 'parents', 'parenthood', 'fatherhood'].includes(normalized)) {
