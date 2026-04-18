@@ -344,6 +344,115 @@ kbd {
   }
 }
 
+/* ─── Graph glass shell ───────────────────────────────────
+ * Sets the psyche graph apart from the rest of the app with a
+ * frosted, aurora-lit container. Aurora wash lives underneath;
+ * a translucent pane and luminous edge form the "glass".
+ * ──────────────────────────────────────────────────────── */
+.psyche-glass-frame {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(
+      80% 60% at 18% 8%,
+      color-mix(in srgb, var(--mirror-accent) 16%, transparent) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      72% 58% at 88% 92%,
+      color-mix(in srgb, var(--node-role-border) 14%, transparent) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      60% 55% at 82% 18%,
+      color-mix(in srgb, var(--node-person-border) 12%, transparent) 0%,
+      transparent 64%
+    ),
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--mirror-pane) 92%, white) 0%,
+      color-mix(in srgb, var(--mirror-surface) 88%, white) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--mirror-accent) 22%, var(--mirror-border));
+  box-shadow:
+    0 30px 70px -28px color-mix(in srgb, var(--mirror-accent) 28%, transparent),
+    0 4px 22px rgba(53, 42, 27, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    inset 0 -1px 0 color-mix(in srgb, var(--mirror-accent) 14%, transparent),
+    inset 0 0 60px color-mix(in srgb, var(--mirror-accent) 6%, transparent);
+}
+
+:root[data-theme='dark'] .psyche-glass-frame {
+  background:
+    radial-gradient(
+      80% 60% at 18% 8%,
+      color-mix(in srgb, var(--mirror-accent) 14%, transparent) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      72% 58% at 88% 92%,
+      color-mix(in srgb, var(--node-role-border) 20%, transparent) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      60% 55% at 82% 18%,
+      color-mix(in srgb, var(--node-person-border) 18%, transparent) 0%,
+      transparent 64%
+    ),
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--mirror-pane) 96%, black) 0%,
+      color-mix(in srgb, var(--mirror-surface) 92%, black) 100%
+    );
+  border-color: color-mix(in srgb, var(--mirror-accent) 28%, var(--mirror-border));
+  box-shadow:
+    0 32px 80px -28px rgba(0, 0, 0, 0.55),
+    0 4px 22px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 color-mix(in srgb, var(--mirror-accent) 14%, transparent),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    inset 0 0 80px color-mix(in srgb, var(--mirror-accent) 8%, transparent);
+}
+
+.psyche-glass-aurora {
+  position: absolute;
+  inset: -12%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(
+      44% 36% at 22% 24%,
+      color-mix(in srgb, var(--mirror-accent) 18%, transparent) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      40% 32% at 78% 80%,
+      color-mix(in srgb, var(--node-role-border) 16%, transparent) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      38% 30% at 80% 22%,
+      color-mix(in srgb, var(--node-person-border) 14%, transparent) 0%,
+      transparent 72%
+    );
+  filter: blur(28px);
+  opacity: 0.9;
+  animation: psyche-aurora-drift 22s ease-in-out infinite;
+}
+
+@keyframes psyche-aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(2%, -3%, 0) scale(1.04);
+  }
+  66% {
+    transform: translate3d(-2%, 2%, 0) scale(1.02);
+  }
+}
+
 /* ─── Edge synapse pulses ─────────────────────────────── */
 .psyche-edge-pulse {
   filter: drop-shadow(0 0 1px color-mix(in srgb, var(--mirror-accent) 22%, transparent));

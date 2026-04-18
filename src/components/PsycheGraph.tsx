@@ -747,13 +747,9 @@ export default function PsycheGraph({
         )}
 
         <div
-          className={`relative flex-1 overflow-hidden ${layout === 'primary' ? 'm-3 rounded-[40px]' : 'm-3 rounded-[28px]'}`}
-          style={{
-            background:
-              'radial-gradient(circle at top, var(--mirror-surface), transparent 58%), var(--mirror-pane)',
-            border: '1px solid var(--mirror-border)',
-          }}
+          className={`psyche-glass-frame relative flex-1 overflow-hidden ${layout === 'primary' ? 'm-3 rounded-[40px]' : 'm-3 rounded-[28px]'}`}
         >
+          <div className="psyche-glass-aurora" aria-hidden="true" />
           {graph.nodes.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center">
               <div
