@@ -6,7 +6,7 @@ import ChatInterface from '@/components/ChatInterface'
 import PsycheGraph from '@/components/PsycheGraph'
 import SettingsModal from '@/components/SettingsModal'
 import { useSettings } from '@/lib/settings'
-import { Conversation, ConversationListItem, Graph, Message, NodeView } from '@/types'
+import { Conversation, ConversationListItem, Graph, Message, NodeInsights, NodeView } from '@/types'
 
 const DEFAULT_STARTER_QUESTION = "What's been on your mind lately?"
 const NODE_STARTER_QUESTIONS: Record<string, string> = {
@@ -32,6 +32,8 @@ export default function Home() {
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([])
   const [nodeView, setNodeView] = useState<NodeView | null>(null)
+  const [nodeInsights, setNodeInsights] = useState<NodeInsights | null>(null)
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false)
   const didAutoOpenConversation = useRef(false)
 
   // ─── Fetchers ──────────────────────────────────────────
@@ -246,6 +248,42 @@ export default function Home() {
     [activeConversation, fetchConversations]
   )
 
+  const handleGenerateInsights = useCallback(async () => {
+    if (isGeneratingInsights) return
+    const targetIds = (nodeView?.nodes ?? [])
+      .filter((node) => node.type !== 'user')
+      .map((node) => node.nodeId)
+    if (targetIds.length === 0) return
+
+    setIsGeneratingInsights(true)
+    try {
+      const res = await fetch('/api/nodes/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeIds: targetIds }),
+      })
+      if (!res.ok) throw new Error('Failed to generate insights')
+      const data = (await res.json()) as {
+        summary: string
+        bullets: string[]
+        generatedAt: string
+        persisted: boolean
+      }
+      setNodeInsights({
+        summary: data.summary,
+        bullets: data.bullets,
+        generatedAt: data.generatedAt,
+      })
+      if (data.persisted) {
+        await fetchGraph()
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsGeneratingInsights(false)
+    }
+  }, [fetchGraph, isGeneratingInsights, nodeView])
+
   const handleSelectNode = useCallback(
     (nodeId: string | null, options?: { additive?: boolean }) => {
       if (!nodeId) {
@@ -297,6 +335,16 @@ export default function Home() {
     }
   }, [activeConversation?.tags, nodeView])
 
+  useEffect(() => {
+    const selected = (nodeView?.nodes ?? []).filter((node) => node.type !== 'user')
+    if (selected.length === 1) {
+      const persisted = graph.nodes.find((node) => node.id === selected[0].nodeId)?.insights ?? null
+      setNodeInsights(persisted ?? null)
+      return
+    }
+    setNodeInsights(null)
+  }, [graph.nodes, nodeView])
+
   const selectedFilterNodeIds =
     nodeView?.nodes.filter((node) => node.type !== 'user').map((node) => node.nodeId) ?? []
   const selectedNodeIds = useMemo(
@@ -322,6 +370,9 @@ export default function Home() {
         onDelete={handleDelete}
         nodeView={nodeView}
         onClearNodeView={() => handleSelectNode(null)}
+        nodeInsights={nodeInsights}
+        onGenerateInsights={handleGenerateInsights}
+        isGeneratingInsights={isGeneratingInsights}
       />
       <PsycheGraph
         graph={graph}

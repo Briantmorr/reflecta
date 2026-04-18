@@ -492,6 +492,35 @@ kbd {
   animation: mirror-map-loading 1.05s ease-in-out infinite;
 }
 
+.mirror-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mirror-accent) 10%, var(--mirror-elevated));
+}
+
+.mirror-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--mirror-accent) 26%, transparent) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: mirror-shimmer-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes mirror-shimmer-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes mirror-map-loading {
   from {
     transform: translateX(-100%);

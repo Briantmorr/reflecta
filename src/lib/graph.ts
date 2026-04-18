@@ -236,6 +236,7 @@ export async function getFullGraph() {
           node.type === 'domain'
             ? CORE_DOMAIN_QUESTIONS[displayLabel(node.label) as keyof typeof CORE_DOMAIN_QUESTIONS]
             : undefined,
+        insights: parseNodeInsights(node.insightSummary, node.insightBullets, node.insightGeneratedAt),
       })),
       edges: finalEdges.map((edge) => ({
         id: edge.id,
@@ -591,4 +592,30 @@ function inferRoleContainer(label: string): string | null {
 
 function isFamilyPerson(normalizedLabel: string) {
   return new Set(['dad', 'mom', 'brother', 'sister', 'son', 'daughter']).has(normalizedLabel)
+}
+
+function parseNodeInsights(
+  summary: string | null,
+  bullets: string | null,
+  generatedAt: Date | null
+) {
+  if (!summary || !generatedAt) return null
+
+  let parsedBullets: string[] = []
+  if (bullets) {
+    try {
+      const raw = JSON.parse(bullets) as unknown
+      if (Array.isArray(raw)) {
+        parsedBullets = raw.filter((value): value is string => typeof value === 'string')
+      }
+    } catch {
+      parsedBullets = []
+    }
+  }
+
+  return {
+    summary,
+    bullets: parsedBullets,
+    generatedAt: generatedAt.toISOString(),
+  }
 }

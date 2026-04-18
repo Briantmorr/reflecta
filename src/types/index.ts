@@ -36,6 +36,12 @@ export interface Message {
   nodeRefs?: { nodeId: string }[]
 }
 
+export interface NodeInsights {
+  summary: string
+  bullets: string[]
+  generatedAt: string
+}
+
 export interface GraphNode {
   id: string
   label: string
@@ -44,6 +50,7 @@ export interface GraphNode {
   createdAt: string
   dormant?: boolean
   question?: string
+  insights?: NodeInsights | null
 }
 
 export interface GraphEdge {

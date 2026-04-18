@@ -7,6 +7,32 @@ import path from 'node:path'
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = 'gpt-5.4'
 
+const INSIGHT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['summary', 'bullets'],
+  properties: {
+    summary: { type: 'string' },
+    bullets: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+  },
+} as const
+
+export interface NodeInsightResult {
+  summary: string
+  bullets: string[]
+}
+
+const DEFAULT_NODE_INSIGHTS_PROMPT = `You are reading every conversation the user has had that touches one or more specific nodes on their life map. Notice things the user hasn't noticed. Connect dots across conversations. Surface how seemingly separate parts of their life are linked.
+
+Return exactly:
+- summary: one sentence (max 24 words), second person ("You..."), naming the through-line, tension, or bridge. Not the topic.
+- bullets: 3 to 5 short observations, 2-7 words each, Title-like phrasing, no trailing period. Each bullet is a pattern, tension, or connection — not an event or raw emotion. Prefer fewer, stronger bullets.
+
+When multiple nodes are in focus, the bullets should especially illuminate the relationship between those nodes. Every bullet must be traceable to what the user actually said. Do not invent. Do not coach. Do not restate the node names. If signal is thin, say so honestly.`
+
 const RESULT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -170,6 +196,10 @@ function getTaggerPrompt() {
   return getPersona() + '\n\n---\n\n' + readPromptFile('conversation-tagger.json', DEFAULT_TAGGER_PROMPT)
 }
 
+function getNodeInsightsPrompt() {
+  return getPersona() + '\n\n---\n\n' + readPromptFile('node-insights.json', DEFAULT_NODE_INSIGHTS_PROMPT)
+}
+
 type InputMessage = {
   role: 'system' | 'user' | 'assistant'
   content: Array<
@@ -278,6 +308,172 @@ export async function generateImportConversationTags({
   ].join('\n\n')
 
   return generateConversationTagsFromTranscript({ transcript: hintedTranscript, graph })
+}
+
+export interface NodeInsightConversation {
+  title: string | null
+  createdAt: string
+  messages: Message[]
+}
+
+export interface NodeInsightNodeRef {
+  label: string
+  type: NodeType
+}
+
+export async function generateNodeInsights({
+  nodes,
+  conversations,
+  maxCharsPerConversation = 6_000,
+  maxTotalChars = 28_000,
+}: {
+  nodes: NodeInsightNodeRef[]
+  conversations: NodeInsightConversation[]
+  maxCharsPerConversation?: number
+  maxTotalChars?: number
+}): Promise<NodeInsightResult> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return buildMockNodeInsights(nodes, conversations)
+  }
+
+  const nodeDescription = nodes
+    .map((node) => `- ${node.label} (${node.type})`)
+    .join('\n')
+
+  const transcripts = buildNodeInsightTranscripts(conversations, {
+    maxCharsPerConversation,
+    maxTotalChars,
+  })
+
+  if (!transcripts.trim()) {
+    return {
+      summary: "You haven't said much that touches this node yet; the picture is still forming.",
+      bullets: ['Barely surfaced yet', 'Little signal so far', 'Needs more conversations'],
+    }
+  }
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: 'system',
+          content: [
+            {
+              type: 'input_text',
+              text: [
+                getNodeInsightsPrompt(),
+                nodes.length === 1
+                  ? 'Node in focus:'
+                  : 'Nodes in focus (insights should honor how the user relates to this combination):',
+                nodeDescription,
+                'Conversations tagged with the node(s) above (oldest first):',
+                transcripts,
+              ].join('\n\n'),
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'mirror_node_insights',
+          schema: INSIGHT_SCHEMA,
+          strict: true,
+        },
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`OpenAI node-insights failed (${response.status}): ${errorText}`)
+  }
+
+  const payload = (await response.json()) as OpenAIResponse
+  const rawText = extractOutputText(payload)
+  if (!rawText) {
+    throw new Error('OpenAI node-insights returned no text output')
+  }
+
+  return sanitizeNodeInsights(JSON.parse(rawText) as NodeInsightResult)
+}
+
+function buildNodeInsightTranscripts(
+  conversations: NodeInsightConversation[],
+  { maxCharsPerConversation, maxTotalChars }: { maxCharsPerConversation: number; maxTotalChars: number }
+) {
+  const ordered = [...conversations].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+  const chunks: string[] = []
+  let total = 0
+
+  for (const conversation of ordered) {
+    const transcript = buildConversationTranscript(conversation.messages)
+    if (!transcript.trim()) continue
+
+    const trimmed = transcript.length > maxCharsPerConversation
+      ? `${transcript.slice(0, Math.floor(maxCharsPerConversation * 0.4))}\n\n[...trimmed middle...]\n\n${transcript.slice(-Math.floor(maxCharsPerConversation * 0.6))}`
+      : transcript
+
+    const header = `--- Conversation: ${conversation.title ?? 'Untitled'} (${conversation.createdAt}) ---`
+    const block = `${header}\n${trimmed}`
+
+    if (total + block.length > maxTotalChars) {
+      const remaining = maxTotalChars - total
+      if (remaining > 400) {
+        chunks.push(`${header}\n${trimmed.slice(0, remaining - header.length - 20)}\n[...trimmed...]`)
+      }
+      break
+    }
+
+    chunks.push(block)
+    total += block.length
+  }
+
+  return chunks.join('\n\n')
+}
+
+function sanitizeNodeInsights(result: NodeInsightResult): NodeInsightResult {
+  const summary =
+    typeof result.summary === 'string' && result.summary.trim().length > 0
+      ? result.summary.trim()
+      : "You've only brushed against this node; the picture is still forming."
+
+  const rawBullets = Array.isArray(result.bullets) ? result.bullets : []
+  const cleaned = rawBullets
+    .map((bullet) => (typeof bullet === 'string' ? bullet.trim().replace(/[.;]+$/, '') : ''))
+    .filter((bullet) => bullet.length > 0)
+    .slice(0, 5)
+
+  while (cleaned.length < 3) {
+    cleaned.push('Still taking shape')
+  }
+
+  return { summary, bullets: cleaned }
+}
+
+function buildMockNodeInsights(
+  nodes: NodeInsightNodeRef[],
+  conversations: NodeInsightConversation[]
+): NodeInsightResult {
+  const label = nodes.map((node) => node.label).join(' + ') || 'this node'
+  if (conversations.length === 0) {
+    return {
+      summary: `You haven't said much about ${label} yet.`,
+      bullets: ['Barely surfaced', 'Little signal so far', 'Needs more conversations'],
+    }
+  }
+  return {
+    summary: `You return to ${label} often enough that a pattern is beginning to show.`,
+    bullets: ['Recurring attention', 'Mixed feelings', 'Still unresolved'],
+  }
 }
 
 function buildConversationTranscript(conversationMessages: Message[]) {

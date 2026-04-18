@@ -106,6 +106,12 @@ model GraphNode {
   // Every time a node is referenced its weight increases
   mentionCount Int          @default(1)
 
+  // Distilled insights across all conversations tagged to this node.
+  // Populated on demand via the "Node insights" button.
+  insightSummary     String?
+  insightBullets     String?    // JSON-encoded string[] of short observations
+  insightGeneratedAt DateTime?
+
   fromEdges   GraphEdge[]   @relation("FromNode")
   toEdges     GraphEdge[]   @relation("ToNode")
   messageRefs MessageNode[]

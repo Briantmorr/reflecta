@@ -4,12 +4,15 @@ import { useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
+  Loader2,
+  RefreshCw,
   Sparkles,
   Trash2,
   UserCircle,
+  Wand2,
   X,
 } from 'lucide-react'
-import { ConversationListItem, NodeView } from '@/types'
+import { ConversationListItem, NodeInsights, NodeView } from '@/types'
 import { useSettings } from '@/lib/settings'
 import { formatDate } from '@/lib/utils'
 
@@ -20,6 +23,9 @@ interface ConversationListProps {
   onDelete: (id: string) => void
   nodeView: NodeView | null
   onClearNodeView: () => void
+  nodeInsights: NodeInsights | null
+  onGenerateInsights: () => Promise<void> | void
+  isGeneratingInsights: boolean
 }
 
 export default function ConversationList({
@@ -29,6 +35,9 @@ export default function ConversationList({
   onDelete,
   nodeView,
   onClearNodeView,
+  nodeInsights,
+  onGenerateInsights,
+  isGeneratingInsights,
 }: ConversationListProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -274,38 +283,115 @@ export default function ConversationList({
                 )}
               </section>
 
-              <section
-                className="rounded-[24px] border px-3 py-3"
-                style={{
-                  background: 'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-surface)), var(--mirror-surface))',
-                  borderColor: 'color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
-                }}
-              >
-                <div
-                  className="text-[10px] font-semibold uppercase tracking-[0.18em]"
-                  style={{ color: 'var(--mirror-accent-hover)' }}
+              {selectedNonUserNodes.length > 0 && (
+                <section
+                  className="rounded-[24px] border px-3 py-3"
+                  style={{
+                    background: 'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-surface)), var(--mirror-surface))',
+                    borderColor: 'color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                  }}
                 >
-                  Node insights
-                </div>
-                <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--mirror-secondary)' }}>
-                  Key patterns: desire for respect, work bleeding over, need for spaciousness.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {['Desire for respect', 'Work bleeding over', 'Need for spaciousness'].map((pattern) => (
-                    <span
-                      key={pattern}
-                      className="rounded-full px-2.5 py-1 text-[11px] font-medium"
-                      style={{
-                        background: 'color-mix(in srgb, var(--mirror-accent) 10%, transparent)',
-                        color: 'var(--mirror-accent-hover)',
-                        border: '1px solid color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                  <div className="flex items-center justify-between gap-2">
+                    <div
+                      className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                      style={{ color: 'var(--mirror-accent-hover)' }}
+                    >
+                      Node insights
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void onGenerateInsights()
                       }}
+                      disabled={isGeneratingInsights || conversations.length === 0}
+                      className="mirror-focus-ring relative flex items-center gap-1.5 overflow-hidden rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors"
+                      style={{
+                        background: isGeneratingInsights
+                          ? 'color-mix(in srgb, var(--mirror-accent) 16%, var(--mirror-elevated))'
+                          : conversations.length === 0
+                            ? 'var(--mirror-elevated)'
+                            : 'color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
+                        color: conversations.length === 0 ? 'var(--mirror-muted)' : 'var(--mirror-accent-hover)',
+                        border: '1px solid color-mix(in srgb, var(--mirror-accent) 24%, var(--mirror-border))',
+                        cursor: conversations.length === 0
+                          ? 'not-allowed'
+                          : isGeneratingInsights ? 'progress' : 'pointer',
+                      }}
+                    >
+                      {isGeneratingInsights && (
+                        <span className="mirror-map-loading absolute inset-x-0 bottom-0 h-[2px]" aria-hidden="true" />
+                      )}
+                      {isGeneratingInsights ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : nodeInsights ? (
+                        <RefreshCw size={10} />
+                      ) : (
+                        <Wand2 size={10} />
+                      )}
+                      {isGeneratingInsights ? 'Reading' : nodeInsights ? 'Refresh' : 'Find patterns'}
+                    </button>
+                  </div>
+
+                  {isGeneratingInsights ? (
+                    <div className="mt-2 space-y-3">
+                      <div className="space-y-1.5">
+                        <div
+                          className="mirror-shimmer h-3 w-full rounded-full"
+                          aria-hidden="true"
+                        />
+                        <div
+                          className="mirror-shimmer h-3 w-4/5 rounded-full"
+                          style={{ animationDelay: '120ms' }}
+                          aria-hidden="true"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[90, 70, 110].map((width, index) => (
+                          <div
+                            key={index}
+                            className="mirror-shimmer h-[22px] rounded-full"
+                            style={{ width, animationDelay: `${index * 140}ms` }}
+                            aria-hidden="true"
+                          />
+                        ))}
+                      </div>
+                      <p
+                        className="text-[11px]"
+                        style={{ color: 'var(--mirror-muted)' }}
                       >
-                      {pattern}
-                      </span>
-                  ))}
-                </div>
-              </section>
+                        Reading {conversations.length} {conversations.length === 1 ? 'conversation' : 'conversations'} for connections…
+                      </p>
+                    </div>
+                  ) : nodeInsights ? (
+                    <>
+                      <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--mirror-text)' }}>
+                        {nodeInsights.summary}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {nodeInsights.bullets.map((bullet, index) => (
+                          <span
+                            key={`${bullet}-${index}`}
+                            className="rounded-full px-2.5 py-1 text-[11px] font-medium"
+                            style={{
+                              background: 'color-mix(in srgb, var(--mirror-accent) 10%, transparent)',
+                              color: 'var(--mirror-accent-hover)',
+                              border: '1px solid color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                            }}
+                          >
+                            {bullet}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--mirror-secondary)' }}>
+                      {conversations.length === 0
+                        ? `No conversations tagged with ${selectedLabel} yet.`
+                        : `Surface patterns and connections${selectedNonUserNodes.length > 1 ? ' between these nodes' : ''} across ${conversations.length} ${conversations.length === 1 ? 'conversation' : 'conversations'}.`}
+                    </p>
+                  )}
+                </section>
+              )}
             </div>
           )}
         </div>
