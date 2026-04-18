@@ -115,7 +115,7 @@ function PsycheNode({ data }: NodeProps) {
           <Icon size={config.iconSize} strokeWidth={1.9} />
         </div>
         <div
-          className="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-[0.08em] transition-all duration-200 group-hover:-translate-y-0.5"
+          className="psyche-node-label whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-medium tracking-[0.08em] transition-all duration-200 group-hover:-translate-y-0.5"
           style={{
             color: isSelected
               ? 'var(--mirror-accent-hover)'
@@ -651,9 +651,10 @@ export default function PsycheGraph({
               className="rounded-[30px] border px-6 py-5"
               style={{
                 background:
-                  'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 12%, var(--mirror-pane)) 0%, color-mix(in srgb, var(--node-person-border) 10%, var(--mirror-pane)) 38%, color-mix(in srgb, var(--node-role-border) 10%, var(--mirror-pane)) 100%)',
-                borderColor: 'var(--mirror-border)',
-                boxShadow: '0 16px 40px rgba(53, 42, 27, 0.06)',
+                  'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-pane)) 0%, var(--mirror-pane) 55%, color-mix(in srgb, var(--mirror-accent) 5%, var(--mirror-surface)) 100%)',
+                borderColor: 'color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                boxShadow:
+                  '0 16px 40px rgba(53, 42, 27, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
               }}
             >
               <div className="flex items-start justify-between gap-4">
