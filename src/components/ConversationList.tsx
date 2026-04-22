@@ -70,14 +70,16 @@ export default function ConversationList({
         width: '280px',
         flexShrink: 0,
         background: 'var(--mirror-nav)',
-        borderLeft: side === 'right' ? '1px solid var(--mirror-border)' : 'none',
-        borderRight: side === 'left' ? '1px solid var(--mirror-border)' : 'none',
+        boxShadow:
+          side === 'right'
+            ? '-12px 0 28px rgba(53, 42, 27, 0.035)'
+            : '12px 0 28px rgba(53, 42, 27, 0.035)',
       }}
     >
       <div className="flex h-full w-full flex-col">
         <div
           className="flex items-center justify-between px-4 py-4"
-          style={{ borderBottom: '1px solid var(--mirror-border)' }}
+          style={{ boxShadow: 'inset 0 -1px 0 rgba(53, 42, 27, 0.05)' }}
         >
           <div className="flex min-w-0 items-center gap-2">
             <div
@@ -123,15 +125,14 @@ export default function ConversationList({
           ) : (
             <div className="space-y-3 px-3">
               <div
-                className="rounded-[24px] border px-3 py-3"
+                className="rounded-[24px] px-3 py-3"
                 style={{
                   background: nodeView
                     ? 'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 16%, var(--mirror-surface)), var(--mirror-surface))'
                     : 'var(--mirror-surface)',
-                  borderColor: nodeView ? 'var(--mirror-accent)' : 'var(--mirror-border)',
                   boxShadow: nodeView
-                    ? '0 0 0 4px var(--mirror-accent-subtle), inset 0 1px 0 rgba(255,255,255,0.28)'
-                    : 'none',
+                    ? '0 0 0 4px var(--mirror-accent-subtle), 0 12px 28px rgba(53, 42, 27, 0.05), inset 0 1px 0 rgba(255,255,255,0.28)'
+                    : '0 10px 24px rgba(53, 42, 27, 0.04)',
                 }}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -150,10 +151,9 @@ export default function ConversationList({
                             ? 'color-mix(in srgb, var(--mirror-accent) 18%, transparent)'
                             : 'var(--mirror-accent-subtle)',
                           color: 'var(--mirror-accent-hover)',
-                          border: nodeView
-                            ? '1px solid color-mix(in srgb, var(--mirror-accent) 34%, var(--mirror-border))'
-                            : '1px solid var(--mirror-accent-dim)',
-                          boxShadow: nodeView ? '0 8px 20px var(--mirror-accent-subtle)' : 'none',
+                          boxShadow: nodeView
+                            ? '0 8px 20px var(--mirror-accent-subtle), inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 18%, transparent)'
+                            : 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
                         }}
                       >
                         {selectedLabel}
@@ -184,11 +184,11 @@ export default function ConversationList({
                 <button
                   type="button"
                   onClick={() => setNodeConversationsOpen((open) => !open)}
-                  className="mirror-focus-ring flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left transition-colors"
+                  className="mirror-focus-ring flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left transition-colors"
                   style={{
                     background: 'color-mix(in srgb, var(--mirror-surface) 76%, transparent)',
-                    borderColor: 'var(--mirror-border)',
                     color: 'var(--mirror-secondary)',
+                    boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.04)',
                   }}
                 >
                   <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
@@ -202,11 +202,11 @@ export default function ConversationList({
                 {nodeConversationsOpen && (
                   conversations.length === 0 ? (
                     <div
-                      className="rounded-2xl border px-3 py-4 text-xs leading-relaxed"
+                      className="rounded-2xl px-3 py-4 text-xs leading-relaxed"
                       style={{
                         background: 'var(--mirror-surface)',
-                        borderColor: 'var(--mirror-border)',
                         color: 'var(--mirror-muted)',
+                        boxShadow: '0 10px 24px rgba(53, 42, 27, 0.04)',
                       }}
                     >
                       {isAllConversationsView
@@ -288,10 +288,10 @@ export default function ConversationList({
 
               {selectedNonUserNodes.length > 0 && (
                 <section
-                  className="rounded-[24px] border px-3 py-3"
+                  className="rounded-[24px] px-3 py-3"
                   style={{
                     background: 'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-surface)), var(--mirror-surface))',
-                    borderColor: 'color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                    boxShadow: '0 14px 30px rgba(53, 42, 27, 0.05), inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
                   }}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -315,7 +315,7 @@ export default function ConversationList({
                             ? 'var(--mirror-elevated)'
                             : 'color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
                         color: conversations.length === 0 ? 'var(--mirror-muted)' : 'var(--mirror-accent-hover)',
-                        border: '1px solid color-mix(in srgb, var(--mirror-accent) 24%, var(--mirror-border))',
+                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 16%, transparent)',
                         cursor: conversations.length === 0
                           ? 'not-allowed'
                           : isGeneratingInsights ? 'progress' : 'pointer',
@@ -378,7 +378,7 @@ export default function ConversationList({
                             style={{
                               background: 'color-mix(in srgb, var(--mirror-accent) 10%, transparent)',
                               color: 'var(--mirror-accent-hover)',
-                              border: '1px solid color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                              boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
                             }}
                           >
                             {bullet}
@@ -401,7 +401,7 @@ export default function ConversationList({
 
         <div
           className="flex items-center justify-between px-4 py-3"
-          style={{ borderTop: '1px solid var(--mirror-border)' }}
+          style={{ boxShadow: 'inset 0 1px 0 rgba(53, 42, 27, 0.05)' }}
         >
           <span className="text-xs" style={{ color: 'var(--mirror-muted)' }}>
             {conversations.length}{' '}

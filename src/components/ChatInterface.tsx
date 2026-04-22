@@ -93,8 +93,12 @@ export default function ChatInterface({
           width: layout === 'side' ? sideWidth : 'auto',
           flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
           background: 'var(--mirror-pane)',
-          borderLeft: layout === 'side' && side === 'right' ? '1px solid var(--mirror-border)' : 'none',
-          borderRight: layout === 'side' && side === 'left' ? '1px solid var(--mirror-border)' : 'none',
+          boxShadow:
+            layout === 'side'
+              ? side === 'right'
+                ? '-12px 0 28px rgba(53, 42, 27, 0.035)'
+                : '12px 0 28px rgba(53, 42, 27, 0.035)'
+              : 'none',
         }}
       >
         <div
@@ -145,14 +149,18 @@ export default function ChatInterface({
         width: layout === 'side' ? sideWidth : 'auto',
         flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
         background: 'var(--mirror-pane)',
-        borderLeft: layout === 'side' && side === 'right' ? '1px solid var(--mirror-border)' : 'none',
-        borderRight: layout === 'side' && side === 'left' ? '1px solid var(--mirror-border)' : 'none',
+        boxShadow:
+          layout === 'side'
+            ? side === 'right'
+              ? '-12px 0 28px rgba(53, 42, 27, 0.035)'
+              : '12px 0 28px rgba(53, 42, 27, 0.035)'
+            : 'none',
       }}
     >
       <div
         className={`flex flex-shrink-0 items-center justify-between ${layout === 'side' ? 'px-5 py-5' : 'px-8 py-6'}`}
         style={{
-          borderBottom: '1px solid var(--mirror-border)',
+          boxShadow: 'inset 0 -1px 0 rgba(53, 42, 27, 0.05)',
           background:
             'linear-gradient(180deg, color-mix(in srgb, var(--mirror-nav) 92%, transparent), var(--mirror-pane))',
         }}
@@ -180,7 +188,7 @@ export default function ChatInterface({
               style={{
                 background: 'var(--mirror-elevated)',
                 color: 'var(--mirror-secondary)',
-                border: '1px solid var(--mirror-border)',
+                boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
               }}
               aria-label={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
               title={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
@@ -196,7 +204,7 @@ export default function ChatInterface({
             style={{
               background: 'color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-elevated))',
               color: 'var(--mirror-accent-hover)',
-              border: '1px solid var(--mirror-accent-dim)',
+              boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 16%, transparent)',
             }}
             aria-label="Start a new reflection"
           >
@@ -233,16 +241,16 @@ export default function ChatInterface({
       <div
         className={`flex-shrink-0 ${layout === 'side' ? 'px-5 pb-5 pt-4' : 'px-6 pb-6 pt-4 sm:px-8'}`}
         style={{
-          borderTop: '1px solid var(--mirror-border)',
+          boxShadow: 'inset 0 1px 0 rgba(53, 42, 27, 0.05)',
           background:
             'linear-gradient(180deg, color-mix(in srgb, var(--mirror-pane) 70%, transparent), var(--mirror-nav))',
         }}
       >
         <div
-          className={`rounded-[28px] border p-3 shadow-sm ${layout === 'side' && isExpanded ? 'mx-auto max-w-2xl' : layout === 'side' ? '' : 'mx-auto max-w-3xl'}`}
+          className={`rounded-[28px] p-3 shadow-sm ${layout === 'side' && isExpanded ? 'mx-auto max-w-2xl' : layout === 'side' ? '' : 'mx-auto max-w-3xl'}`}
           style={{
             background: 'var(--mirror-surface)',
-            borderColor: 'var(--mirror-border)',
+            boxShadow: '0 14px 30px rgba(53, 42, 27, 0.05)',
           }}
         >
           <div className="mb-3 flex items-center justify-between gap-3 px-2">

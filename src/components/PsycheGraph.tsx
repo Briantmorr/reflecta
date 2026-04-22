@@ -640,19 +640,20 @@ export default function PsycheGraph({
         flex: layout === 'primary' ? '1 1 auto' : '0 0 auto',
         minWidth: 0,
         background: 'var(--mirror-pane)',
-        borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
-        borderRight: layout === 'primary' ? '1px solid var(--mirror-border)' : 'none',
+        boxShadow:
+          layout === 'primary'
+            ? '0 0 0 1px rgba(53, 42, 27, 0.02)'
+            : '-12px 0 28px rgba(53, 42, 27, 0.035)',
       }}
     >
       <div className="flex h-full w-full flex-col">
         {layout === 'primary' && (
           <div className="px-4 pb-0 pt-2">
             <div
-              className="rounded-[28px] border px-5 py-3.5"
+              className="rounded-[28px] px-5 py-3.5"
               style={{
                 background:
                   'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-pane)) 0%, var(--mirror-pane) 55%, color-mix(in srgb, var(--mirror-accent) 5%, var(--mirror-surface)) 100%)',
-                borderColor: 'color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
                 boxShadow:
                   '0 12px 30px rgba(53, 42, 27, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
               }}
@@ -693,7 +694,7 @@ export default function PsycheGraph({
                       style={{
                         background: 'color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
                         color: 'var(--mirror-accent)',
-                        border: '1px solid color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
+                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
                       }}
                     >
                       Patterns
@@ -703,7 +704,7 @@ export default function PsycheGraph({
                       style={{
                         background: 'color-mix(in srgb, var(--node-person-border) 12%, transparent)',
                         color: 'var(--node-person-border)',
-                        border: '1px solid color-mix(in srgb, var(--node-person-border) 18%, var(--mirror-border))',
+                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--node-person-border) 14%, transparent)',
                       }}
                     >
                       People
@@ -713,7 +714,7 @@ export default function PsycheGraph({
                       style={{
                         background: 'color-mix(in srgb, var(--node-role-border) 12%, transparent)',
                         color: 'var(--node-role-border)',
-                        border: '1px solid color-mix(in srgb, var(--node-role-border) 18%, var(--mirror-border))',
+                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--node-role-border) 14%, transparent)',
                       }}
                     >
                       Themes
@@ -726,7 +727,7 @@ export default function PsycheGraph({
                     style={{
                       background: 'var(--mirror-surface)',
                       color: 'var(--mirror-secondary)',
-                      border: '1px solid var(--mirror-border)',
+                      boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
                     }}
                   >
                     {graph.nodes.length} nodes
@@ -797,10 +798,9 @@ export default function PsycheGraph({
               <Controls
                 style={{
                   background: 'var(--mirror-elevated)',
-                  border: '1px solid var(--mirror-border)',
                   borderRadius: '999px',
                   overflow: 'hidden',
-                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
                 }}
                 showInteractive={false}
               />
@@ -812,7 +812,6 @@ export default function PsycheGraph({
               className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border px-3 py-1.5 text-[10px] font-medium"
               style={{
                 background: 'color-mix(in srgb, var(--mirror-surface) 74%, transparent)',
-                borderColor: 'color-mix(in srgb, var(--mirror-border) 70%, transparent)',
                 color: 'var(--mirror-muted)',
                 boxShadow: '0 8px 20px rgba(53, 42, 27, 0.04)',
                 backdropFilter: 'blur(14px)',
@@ -825,12 +824,29 @@ export default function PsycheGraph({
         </div>
 
         <div
-          className={`flex flex-shrink-0 items-center justify-around ${layout === 'primary' ? 'px-5 pb-4 pt-0' : 'px-4 pb-4 pt-1'}`}
+          className={`flex flex-shrink-0 justify-center ${layout === 'primary' ? 'px-5 pb-4 pt-0' : 'px-4 pb-4 pt-1'}`}
         >
-          <LegendItem type="user" label="You" />
-          <LegendItem type="domain" label="Theme" />
-          <LegendItem type="person" label="Person" />
-          <LegendItem type="role" label="Group" />
+          <div
+            className="flex items-center gap-3 rounded-full px-3 py-2"
+            style={{
+              background: 'color-mix(in srgb, var(--mirror-surface) 84%, transparent)',
+              boxShadow: '0 8px 22px rgba(0, 0, 0, 0.05)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <span
+              className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+              style={{ color: 'var(--mirror-muted)' }}
+            >
+              Legend
+            </span>
+            <div className="flex items-center gap-2.5">
+              <LegendItem type="user" label="You" />
+              <LegendItem type="domain" label="Theme" />
+              <LegendItem type="person" label="Person" />
+              <LegendItem type="role" label="Group" />
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -841,27 +857,20 @@ function LegendItem({ type, label }: { type: NodeType; label: string }) {
   const config = NODE_STYLES[type]
   const Icon = getNodeIcon(type, label)
   return (
-    <div
-      className="flex items-center gap-2 rounded-full px-3 py-2"
-      style={{
-        background: 'var(--mirror-surface)',
-        border: '1px solid var(--mirror-border)',
-        boxShadow: '0 8px 22px rgba(0, 0, 0, 0.05)',
-      }}
-    >
+    <div className="flex items-center gap-1.5">
       <div
         className="flex items-center justify-center rounded-full"
         style={{
-          width: 24,
-          height: 24,
+          width: 18,
+          height: 18,
           background: config.bg,
-          border: `1px solid ${config.border}`,
+          boxShadow: `inset 0 0 0 1px ${config.border}`,
           color: config.fg,
         }}
       >
-        <Icon size={13} strokeWidth={2} />
+        <Icon size={10} strokeWidth={2} />
       </div>
-      <span className="text-xs font-medium" style={{ color: 'var(--mirror-secondary)' }}>
+      <span className="text-[11px] font-medium" style={{ color: 'var(--mirror-secondary)' }}>
         {label}
       </span>
     </div>
