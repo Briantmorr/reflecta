@@ -26,6 +26,7 @@ interface ConversationListProps {
   nodeInsights: NodeInsights | null
   onGenerateInsights: () => Promise<void> | void
   isGeneratingInsights: boolean
+  side?: 'left' | 'right'
 }
 
 export default function ConversationList({
@@ -38,6 +39,7 @@ export default function ConversationList({
   nodeInsights,
   onGenerateInsights,
   isGeneratingInsights,
+  side = 'left',
 }: ConversationListProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -68,7 +70,8 @@ export default function ConversationList({
         width: '280px',
         flexShrink: 0,
         background: 'var(--mirror-nav)',
-        borderRight: '1px solid var(--mirror-border)',
+        borderLeft: side === 'right' ? '1px solid var(--mirror-border)' : 'none',
+        borderRight: side === 'left' ? '1px solid var(--mirror-border)' : 'none',
       }}
     >
       <div className="flex h-full w-full flex-col">

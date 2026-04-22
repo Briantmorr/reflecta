@@ -232,6 +232,52 @@ kbd {
   cursor: default;
 }
 
+/* ─── Node specular shine ─────────────────────────────────
+ * A small inner highlight at the top-left of each node icon
+ * makes it read as a polished sphere rather than a flat disc.
+ * Dormant nodes get a dimmer shine so they stay in the background.
+ * ──────────────────────────────────────────────────────── */
+.psyche-node-icon {
+  position: relative;
+  overflow: hidden;
+}
+
+.psyche-node-icon::before {
+  content: '';
+  position: absolute;
+  top: 8%;
+  left: 14%;
+  width: 44%;
+  height: 32%;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.18) 48%,
+    transparent 78%
+  );
+  filter: blur(0.5px);
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.psyche-node-shell.is-dormant .psyche-node-icon::before {
+  opacity: 0.35;
+}
+
+.psyche-node-shell.is-dim .psyche-node-icon::before {
+  opacity: 0.4;
+}
+
+:root[data-theme='dark'] .psyche-node-icon::before {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.1) 48%,
+    transparent 78%
+  );
+}
+
 .psyche-node-shell {
   --drift-delay: 0s;
   transition:
@@ -451,6 +497,88 @@ kbd {
   filter: blur(28px);
   opacity: 0.9;
   animation: psyche-aurora-drift 22s ease-in-out infinite;
+}
+
+/* ─── Mirror specular highlights ──────────────────────────
+ * Soft catchlight in the top-left + smaller one in the top-right,
+ * plus a gentle "horizon" glow along the bottom edge. These layer
+ * above content with overlay blending so the graph still reads,
+ * but the pane feels polished and reflective like a real mirror.
+ * ──────────────────────────────────────────────────────── */
+.psyche-glass-frame::before,
+.psyche-glass-frame::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.psyche-glass-frame::before {
+  inset: 0;
+  background:
+    radial-gradient(
+      62% 42% at 18% 10%,
+      color-mix(in srgb, white 30%, transparent) 0%,
+      color-mix(in srgb, white 10%, transparent) 38%,
+      transparent 72%
+    ),
+    radial-gradient(
+      32% 22% at 84% 16%,
+      color-mix(in srgb, white 18%, transparent) 0%,
+      transparent 64%
+    );
+  mix-blend-mode: overlay;
+  opacity: 0.95;
+  animation: psyche-mirror-breathe 18s ease-in-out infinite;
+}
+
+.psyche-glass-frame::after {
+  inset: auto 0 0 0;
+  height: 34%;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, white 14%, transparent) 0%,
+    color-mix(in srgb, white 4%, transparent) 28%,
+    transparent 70%
+  );
+  mix-blend-mode: overlay;
+  opacity: 0.85;
+}
+
+:root[data-theme='dark'] .psyche-glass-frame::before {
+  background:
+    radial-gradient(
+      62% 42% at 18% 10%,
+      color-mix(in srgb, white 14%, transparent) 0%,
+      color-mix(in srgb, white 4%, transparent) 38%,
+      transparent 72%
+    ),
+    radial-gradient(
+      32% 22% at 84% 16%,
+      color-mix(in srgb, white 8%, transparent) 0%,
+      transparent 64%
+    );
+  opacity: 0.8;
+}
+
+:root[data-theme='dark'] .psyche-glass-frame::after {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, white 7%, transparent) 0%,
+    color-mix(in srgb, white 2%, transparent) 28%,
+    transparent 70%
+  );
+  opacity: 0.75;
+}
+
+@keyframes psyche-mirror-breathe {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes psyche-aurora-drift {

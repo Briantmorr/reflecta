@@ -646,30 +646,30 @@ export default function PsycheGraph({
     >
       <div className="flex h-full w-full flex-col">
         {layout === 'primary' && (
-          <div className="px-4 pb-0 pt-3">
+          <div className="px-4 pb-0 pt-2">
             <div
-              className="rounded-[30px] border px-6 py-5"
+              className="rounded-[28px] border px-5 py-3.5"
               style={{
                 background:
                   'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-pane)) 0%, var(--mirror-pane) 55%, color-mix(in srgb, var(--mirror-accent) 5%, var(--mirror-surface)) 100%)',
                 borderColor: 'color-mix(in srgb, var(--mirror-accent) 18%, var(--mirror-border))',
                 boxShadow:
-                  '0 16px 40px rgba(53, 42, 27, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
+                  '0 12px 30px rgba(53, 42, 27, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
               }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="mb-2 flex items-center gap-2">
+                  <div className="mb-1.5 flex items-center gap-2">
                     <div
-                      className="flex h-8 w-8 items-center justify-center rounded-full"
+                      className="flex h-7 w-7 items-center justify-center rounded-full"
                       style={{
                         background:
                           'linear-gradient(135deg, var(--mirror-accent-subtle), color-mix(in srgb, var(--mirror-accent) 24%, transparent))',
                         boxShadow:
-                          '0 8px 18px color-mix(in srgb, var(--mirror-accent) 15%, transparent)',
+                          '0 6px 14px color-mix(in srgb, var(--mirror-accent) 15%, transparent)',
                       }}
                     >
-                      <Activity size={13} style={{ color: 'var(--mirror-accent)' }} />
+                      <Activity size={12} style={{ color: 'var(--mirror-accent)' }} />
                     </div>
                     <div
                       className="text-[11px] font-semibold uppercase tracking-[0.24em]"
@@ -678,18 +678,18 @@ export default function PsycheGraph({
                       Mirror map
                     </div>
                   </div>
-                  <h1 className="text-xl font-semibold" style={{ color: 'var(--mirror-text)' }}>
+                  <h1 className="text-lg font-semibold" style={{ color: 'var(--mirror-text)' }}>
                     A living map of your inner world
                   </h1>
                   <p
-                    className="mt-1 max-w-2xl text-sm leading-relaxed"
+                    className="mt-0.5 max-w-2xl text-[13px] leading-relaxed"
                     style={{ color: 'var(--mirror-secondary)' }}
                   >
                     People, themes, and patterns take shape as you reflect.
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     <span
-                      className="rounded-full px-3 py-1 text-[11px] font-medium"
+                      className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
                       style={{
                         background: 'color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
                         color: 'var(--mirror-accent)',
@@ -699,7 +699,7 @@ export default function PsycheGraph({
                       Patterns
                     </span>
                     <span
-                      className="rounded-full px-3 py-1 text-[11px] font-medium"
+                      className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
                       style={{
                         background: 'color-mix(in srgb, var(--node-person-border) 12%, transparent)',
                         color: 'var(--node-person-border)',
@@ -709,7 +709,7 @@ export default function PsycheGraph({
                       People
                     </span>
                     <span
-                      className="rounded-full px-3 py-1 text-[11px] font-medium"
+                      className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
                       style={{
                         background: 'color-mix(in srgb, var(--node-role-border) 12%, transparent)',
                         color: 'var(--node-role-border)',
@@ -722,7 +722,7 @@ export default function PsycheGraph({
                 </div>
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
                   <span
-                    className="rounded-full px-3 py-1.5 text-[11px] font-medium"
+                    className="rounded-full px-2.5 py-1 text-[10px] font-medium"
                     style={{
                       background: 'var(--mirror-surface)',
                       color: 'var(--mirror-secondary)',
@@ -730,16 +730,6 @@ export default function PsycheGraph({
                     }}
                   >
                     {graph.nodes.length} nodes
-                  </span>
-                  <span
-                    className="rounded-full px-3 py-1.5 text-[11px] font-medium"
-                    style={{
-                      background: 'var(--mirror-surface)',
-                      color: 'var(--mirror-secondary)',
-                      border: '1px solid var(--mirror-border)',
-                    }}
-                  >
-                    {graph.edges.length} links
                   </span>
                 </div>
               </div>

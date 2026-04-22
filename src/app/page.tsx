@@ -363,24 +363,6 @@ export default function Home() {
       className="flex h-screen overflow-hidden"
       style={{ background: 'var(--mirror-bg)' }}
     >
-      <ConversationList
-        conversations={visibleConversations}
-        activeConversationId={activeConversation?.id ?? null}
-        onSelect={handleSelect}
-        onDelete={handleDelete}
-        nodeView={nodeView}
-        onClearNodeView={() => handleSelectNode(null)}
-        nodeInsights={nodeInsights}
-        onGenerateInsights={handleGenerateInsights}
-        isGeneratingInsights={isGeneratingInsights}
-      />
-      <PsycheGraph
-        graph={graph}
-        highlightedNodeIds={highlightedNodeIds}
-        selectedNodeIds={selectedNodeIds}
-        onSelectNode={handleSelectNode}
-        layout="primary"
-      />
       <ChatInterface
         conversation={activeConversation}
         starterPrompt={starterPrompt}
@@ -391,6 +373,26 @@ export default function Home() {
         onRemoveTag={handleRemoveTag}
         isUpdatingTags={isUpdatingTags}
         layout="side"
+        side="left"
+      />
+      <PsycheGraph
+        graph={graph}
+        highlightedNodeIds={highlightedNodeIds}
+        selectedNodeIds={selectedNodeIds}
+        onSelectNode={handleSelectNode}
+        layout="primary"
+      />
+      <ConversationList
+        conversations={visibleConversations}
+        activeConversationId={activeConversation?.id ?? null}
+        onSelect={handleSelect}
+        onDelete={handleDelete}
+        nodeView={nodeView}
+        onClearNodeView={() => handleSelectNode(null)}
+        nodeInsights={nodeInsights}
+        onGenerateInsights={handleGenerateInsights}
+        isGeneratingInsights={isGeneratingInsights}
+        side="right"
       />
       <SettingsModal />
     </main>

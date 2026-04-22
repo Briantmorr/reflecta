@@ -7,12 +7,11 @@ import {
   MessageCircle,
   Sparkles,
   RefreshCw,
-  X,
   PlusCircle,
   Maximize2,
   Minimize2,
 } from 'lucide-react'
-import { Message, Conversation, ConversationTag } from '@/types'
+import { Message, Conversation } from '@/types'
 
 interface ChatInterfaceProps {
   conversation: Conversation | null
@@ -24,6 +23,7 @@ interface ChatInterfaceProps {
   isSending: boolean
   isUpdatingTags: boolean
   layout?: 'main' | 'side'
+  side?: 'left' | 'right'
 }
 
 export default function ChatInterface({
@@ -36,6 +36,7 @@ export default function ChatInterface({
   isSending,
   isUpdatingTags,
   layout = 'main',
+  side = 'right',
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
@@ -92,7 +93,8 @@ export default function ChatInterface({
           width: layout === 'side' ? sideWidth : 'auto',
           flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
           background: 'var(--mirror-pane)',
-          borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
+          borderLeft: layout === 'side' && side === 'right' ? '1px solid var(--mirror-border)' : 'none',
+          borderRight: layout === 'side' && side === 'left' ? '1px solid var(--mirror-border)' : 'none',
         }}
       >
         <div
@@ -135,7 +137,6 @@ export default function ChatInterface({
   const headerTitle = isDraft
     ? 'New reflection'
     : conversation?.title ?? 'New Conversation'
-  const tags = conversation?.tags ?? []
 
   return (
     <aside
@@ -144,7 +145,8 @@ export default function ChatInterface({
         width: layout === 'side' ? sideWidth : 'auto',
         flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
         background: 'var(--mirror-pane)',
-        borderLeft: layout === 'side' ? '1px solid var(--mirror-border)' : 'none',
+        borderLeft: layout === 'side' && side === 'right' ? '1px solid var(--mirror-border)' : 'none',
+        borderRight: layout === 'side' && side === 'left' ? '1px solid var(--mirror-border)' : 'none',
       }}
     >
       <div
@@ -168,17 +170,6 @@ export default function ChatInterface({
           <p className="mt-1 text-xs" style={{ color: 'var(--mirror-muted)' }}>
             {isDraft ? 'Draft. Saved when you send.' : `${messages.length} ${messages.length === 1 ? 'message' : 'messages'}`}
           </p>
-          {tags.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {tags.map((tag) => (
-              <ConversationTagPill
-                key={tag.nodeId}
-                tag={tag}
-                onRemove={onRemoveTag}
-              />
-              ))}
-            </div>
-          )}
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           {layout === 'side' && (
@@ -388,37 +379,5 @@ function MessageBubble({ role, content, isStarter, wide = false }: MessageBubble
         </p>
       </div>
     </div>
-  )
-}
-
-function ConversationTagPill({
-  tag,
-  onRemove,
-}: {
-  tag: ConversationTag
-  onRemove: (nodeId: string) => Promise<void>
-}) {
-  return (
-    <span
-      className="inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs"
-      style={{
-        borderColor: 'var(--mirror-border)',
-        background: 'color-mix(in srgb, var(--mirror-surface) 72%, transparent)',
-        color: 'color-mix(in srgb, var(--mirror-secondary) 78%, transparent)',
-        backdropFilter: 'blur(8px)',
-        opacity: 0.82,
-      }}
-    >
-      <span>{tag.label}</span>
-      <button
-        type="button"
-        onClick={() => void onRemove(tag.nodeId)}
-        className="mirror-focus-ring flex h-4 w-4 items-center justify-center rounded-full"
-        style={{ color: 'color-mix(in srgb, var(--mirror-muted) 82%, transparent)' }}
-        aria-label={`Remove ${tag.label} tag`}
-      >
-        <X size={11} />
-      </button>
-    </span>
   )
 }
