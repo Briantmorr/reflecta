@@ -112,6 +112,11 @@ model GraphNode {
   insightBullets     String?    // JSON-encoded string[] of short observations
   insightGeneratedAt DateTime?
 
+  // Factual distillation ("memory") of the user grounded in this node's conversations.
+  // Editable by the user. For the User node this acts as the global user profile.
+  contextText        String?
+  contextUpdatedAt   DateTime?
+
   fromEdges   GraphEdge[]   @relation("FromNode")
   toEdges     GraphEdge[]   @relation("ToNode")
   messageRefs MessageNode[]

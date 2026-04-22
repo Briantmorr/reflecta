@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   Loader2,
+  Pencil,
   RefreshCw,
   Sparkles,
   Trash2,
@@ -12,7 +14,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react'
-import { ConversationListItem, NodeInsights, NodeView } from '@/types'
+import { ConversationListItem, NodeContext, NodeInsights, NodeView } from '@/types'
 import { useSettings } from '@/lib/settings'
 import { formatDate } from '@/lib/utils'
 
@@ -26,6 +28,11 @@ interface ConversationListProps {
   nodeInsights: NodeInsights | null
   onGenerateInsights: () => Promise<void> | void
   isGeneratingInsights: boolean
+  nodeContext: NodeContext | null
+  onGenerateContext: () => Promise<void> | void
+  onSaveContext: (text: string) => Promise<void> | void
+  isGeneratingContext: boolean
+  isSavingContext: boolean
   side?: 'left' | 'right'
 }
 
@@ -39,11 +46,18 @@ export default function ConversationList({
   nodeInsights,
   onGenerateInsights,
   isGeneratingInsights,
+  nodeContext,
+  onGenerateContext,
+  onSaveContext,
+  isGeneratingContext,
+  isSavingContext,
   side = 'left',
 }: ConversationListProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [nodeConversationsOpen, setNodeConversationsOpen] = useState(false)
+  const [isEditingContext, setIsEditingContext] = useState(false)
+  const [contextDraft, setContextDraft] = useState('')
   const { openSettings } = useSettings()
   const selectedNodes = nodeView?.nodes ?? []
   const selectedNonUserNodes = selectedNodes.filter((node) => node.type !== 'user')
@@ -51,6 +65,14 @@ export default function ConversationList({
     ? selectedNodes.map((node) => node.label).join(' + ')
     : 'You'
   const isAllConversationsView = selectedNonUserNodes.length === 0
+  const singleSelectedNode = selectedNodes.length === 1 ? selectedNodes[0] : null
+  const isUserNodeSelected = singleSelectedNode?.type === 'user'
+  const contextSectionLabel = isUserNodeSelected ? 'User profile' : 'Node context'
+
+  useEffect(() => {
+    setIsEditingContext(false)
+    setContextDraft(nodeContext?.text ?? '')
+  }, [nodeContext?.text, singleSelectedNode?.nodeId])
 
   const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
@@ -391,6 +413,157 @@ export default function ConversationList({
                       {conversations.length === 0
                         ? `No conversations tagged with ${selectedLabel} yet.`
                         : `Surface patterns and connections${selectedNonUserNodes.length > 1 ? ' between these nodes' : ''} across ${conversations.length} ${conversations.length === 1 ? 'conversation' : 'conversations'}.`}
+                    </p>
+                  )}
+                </section>
+              )}
+
+              {singleSelectedNode && (
+                <section
+                  className="rounded-[24px] px-3 py-3"
+                  style={{
+                    background: 'var(--mirror-surface)',
+                    boxShadow: '0 10px 24px rgba(53, 42, 27, 0.04), inset 0 0 0 1px rgba(53, 42, 27, 0.04)',
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div
+                      className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                      style={{ color: 'var(--mirror-secondary)' }}
+                    >
+                      {contextSectionLabel}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {!isEditingContext && nodeContext && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContextDraft(nodeContext.text)
+                            setIsEditingContext(true)
+                          }}
+                          title="Edit"
+                          aria-label="Edit context"
+                          className="mirror-focus-ring flex h-6 w-6 items-center justify-center rounded-full"
+                          style={{
+                            background: 'var(--mirror-elevated)',
+                            color: 'var(--mirror-secondary)',
+                          }}
+                        >
+                          <Pencil size={10} />
+                        </button>
+                      )}
+                      {!isEditingContext && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void onGenerateContext()
+                          }}
+                          disabled={isGeneratingContext || conversations.length === 0}
+                          className="mirror-focus-ring relative flex items-center gap-1.5 overflow-hidden rounded-full px-2.5 py-1 text-[10px] font-semibold transition-colors"
+                          style={{
+                            background: isGeneratingContext
+                              ? 'color-mix(in srgb, var(--mirror-accent) 16%, var(--mirror-elevated))'
+                              : conversations.length === 0
+                                ? 'var(--mirror-elevated)'
+                                : 'var(--mirror-elevated)',
+                            color: conversations.length === 0 ? 'var(--mirror-muted)' : 'var(--mirror-secondary)',
+                            boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
+                            cursor: conversations.length === 0
+                              ? 'not-allowed'
+                              : isGeneratingContext ? 'progress' : 'pointer',
+                          }}
+                        >
+                          {isGeneratingContext && (
+                            <span className="mirror-map-loading absolute inset-x-0 bottom-0 h-[2px]" aria-hidden="true" />
+                          )}
+                          {isGeneratingContext ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : nodeContext ? (
+                            <RefreshCw size={10} />
+                          ) : (
+                            <Wand2 size={10} />
+                          )}
+                          {isGeneratingContext ? 'Distilling' : nodeContext ? 'Refresh' : 'Build memory'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {isGeneratingContext ? (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="mirror-shimmer h-3 w-3/4 rounded-full" aria-hidden="true" />
+                      <div className="mirror-shimmer h-3 w-full rounded-full" style={{ animationDelay: '120ms' }} aria-hidden="true" />
+                      <div className="mirror-shimmer h-3 w-5/6 rounded-full" style={{ animationDelay: '240ms' }} aria-hidden="true" />
+                    </div>
+                  ) : isEditingContext ? (
+                    <div className="mt-2 space-y-2">
+                      <textarea
+                        value={contextDraft}
+                        onChange={(event) => setContextDraft(event.target.value)}
+                        className="mirror-focus-ring w-full resize-y rounded-2xl px-3 py-2 text-xs leading-relaxed"
+                        rows={8}
+                        style={{
+                          background: 'var(--mirror-elevated)',
+                          color: 'var(--mirror-text)',
+                          boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.06)',
+                          minHeight: '140px',
+                        }}
+                        placeholder={`Facts about ${singleSelectedNode.label}…`}
+                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContextDraft(nodeContext?.text ?? '')
+                            setIsEditingContext(false)
+                          }}
+                          disabled={isSavingContext}
+                          className="mirror-focus-ring flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                          style={{
+                            background: 'var(--mirror-elevated)',
+                            color: 'var(--mirror-secondary)',
+                            boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
+                          }}
+                        >
+                          <X size={10} />
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await onSaveContext(contextDraft)
+                            setIsEditingContext(false)
+                          }}
+                          disabled={isSavingContext}
+                          className="mirror-focus-ring flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                          style={{
+                            background: 'color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
+                            color: 'var(--mirror-accent-hover)',
+                            boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 16%, transparent)',
+                            cursor: isSavingContext ? 'progress' : 'pointer',
+                          }}
+                        >
+                          {isSavingContext ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : nodeContext ? (
+                    <p
+                      className="mt-2 whitespace-pre-wrap text-xs leading-relaxed"
+                      style={{ color: 'var(--mirror-text)' }}
+                    >
+                      {nodeContext.text}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--mirror-secondary)' }}>
+                      {conversations.length === 0
+                        ? isUserNodeSelected
+                          ? 'No conversations yet — your profile will fill in as you talk.'
+                          : `No conversations tagged with ${selectedLabel} yet.`
+                        : isUserNodeSelected
+                          ? `Distill a factual profile from ${conversations.length} ${conversations.length === 1 ? 'conversation' : 'conversations'}.`
+                          : `Capture the facts about ${selectedLabel} across ${conversations.length} ${conversations.length === 1 ? 'conversation' : 'conversations'}.`}
                     </p>
                   )}
                 </section>

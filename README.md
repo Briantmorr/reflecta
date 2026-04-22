@@ -88,6 +88,7 @@ Prompts live in `prompts/` as JSON files so you can iterate on tone and behavior
 | `conversation-turn.json` | Per-message reflective replies and entity extraction |
 | `conversation-tagger.json` | Post-conversation tagging (the "Update map" step) |
 | `node-insights.json` | Node summary synthesis for selected graph nodes |
+| `node-context.json` | Factual node memory / user profile distilled from tagged conversations |
 
 Each file has one field:
 

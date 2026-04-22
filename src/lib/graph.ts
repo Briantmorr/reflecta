@@ -237,6 +237,7 @@ export async function getFullGraph() {
             ? CORE_DOMAIN_QUESTIONS[displayLabel(node.label) as keyof typeof CORE_DOMAIN_QUESTIONS]
             : undefined,
         insights: parseNodeInsights(node.insightSummary, node.insightBullets, node.insightGeneratedAt),
+        context: parseNodeContext(node.contextText, node.contextUpdatedAt),
       })),
       edges: finalEdges.map((edge) => ({
         id: edge.id,
@@ -592,6 +593,14 @@ function inferRoleContainer(label: string): string | null {
 
 function isFamilyPerson(normalizedLabel: string) {
   return new Set(['dad', 'mom', 'brother', 'sister', 'son', 'daughter']).has(normalizedLabel)
+}
+
+function parseNodeContext(text: string | null, updatedAt: Date | null) {
+  if (!text || !updatedAt) return null
+  return {
+    text,
+    updatedAt: updatedAt.toISOString(),
+  }
 }
 
 function parseNodeInsights(

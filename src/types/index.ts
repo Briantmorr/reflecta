@@ -42,6 +42,11 @@ export interface NodeInsights {
   generatedAt: string
 }
 
+export interface NodeContext {
+  text: string
+  updatedAt: string
+}
+
 export interface GraphNode {
   id: string
   label: string
@@ -51,6 +56,7 @@ export interface GraphNode {
   dormant?: boolean
   question?: string
   insights?: NodeInsights | null
+  context?: NodeContext | null
 }
 
 export interface GraphEdge {

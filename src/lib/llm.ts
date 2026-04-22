@@ -24,6 +24,19 @@ export interface NodeInsightResult {
   bullets: string[]
 }
 
+const CONTEXT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['context'],
+  properties: {
+    context: { type: 'string' },
+  },
+} as const
+
+export interface NodeContextResult {
+  context: string
+}
+
 const DEFAULT_NODE_INSIGHTS_PROMPT = `You are reading every conversation the user has had that touches one or more specific nodes on their life map. Notice things the user hasn't noticed. Connect dots across conversations. Surface how seemingly separate parts of their life are linked.
 
 Return exactly:
@@ -31,6 +44,25 @@ Return exactly:
 - bullets: 3 to 5 short observations, 2-7 words each, Title-like phrasing, no trailing period. Each bullet is a pattern, tension, or connection — not an event or raw emotion. Prefer fewer, stronger bullets.
 
 When multiple nodes are in focus, the bullets should especially illuminate the relationship between those nodes. Every bullet must be traceable to what the user actually said. Do not invent. Do not coach. Do not restate the node names. If signal is thin, say so honestly.`
+
+const DEFAULT_NODE_CONTEXT_PROMPT = `You are building factual node memory for a life map. Not insights. Not interpretation. Not coaching. Only durable facts future conversations should rely on without re-asking.
+
+You receive: (1) existing memory for this node and (2) new conversation transcripts tagged to this node. Merge them. Keep still-true facts. Add new facts. Update changed facts. Remove contradicted facts. Newest transcript wins unless user-edited memory is clearly newer.
+
+Write like smart caveman:
+- bullets only
+- no headings
+- no paragraphs
+- fragments preferred
+- shortest clear wording
+- one fact per bullet
+- 2 to 5 bullets total
+- 3 to 8 words per bullet when possible
+- if choosing between completeness and brevity, choose brevity
+
+Keep only highest-value facts. Use user's own names and labels.
+
+Do NOT include patterns, tensions, insights, advice, encouragement, therapy language, unsupported inference, duplicated facts, or scene-setting detail. If signal thin, return 1 to 2 bullets only.`
 
 const RESULT_SCHEMA = {
   type: 'object',
@@ -162,6 +194,7 @@ export function getPromptFallbacks(): Record<PromptKey, string> {
     conversation_turn: DEFAULT_SYSTEM_PROMPT,
     conversation_tagger: DEFAULT_TAGGER_PROMPT,
     node_insights: DEFAULT_NODE_INSIGHTS_PROMPT,
+    node_context: DEFAULT_NODE_CONTEXT_PROMPT,
   }
 }
 
@@ -194,6 +227,14 @@ async function getNodeInsightsPrompt() {
     (await getPersona()) +
     '\n\n---\n\n' +
     (await getPrompt('node_insights', 'node-insights.json', DEFAULT_NODE_INSIGHTS_PROMPT))
+  )
+}
+
+async function getNodeContextPrompt() {
+  return (
+    (await getPersona()) +
+    '\n\n---\n\n' +
+    (await getPrompt('node_context', 'node-context.json', DEFAULT_NODE_CONTEXT_PROMPT))
   )
 }
 
@@ -400,6 +441,118 @@ export async function generateNodeInsights({
   }
 
   return sanitizeNodeInsights(JSON.parse(rawText) as NodeInsightResult)
+}
+
+export async function generateNodeContext({
+  node,
+  existingContext,
+  conversations,
+  maxCharsPerConversation = 6_000,
+  maxTotalChars = 28_000,
+}: {
+  node: NodeInsightNodeRef
+  existingContext: string | null
+  conversations: NodeInsightConversation[]
+  maxCharsPerConversation?: number
+  maxTotalChars?: number
+}): Promise<NodeContextResult> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    return buildMockNodeContext(node, existingContext, conversations)
+  }
+
+  const transcripts = buildNodeInsightTranscripts(conversations, {
+    maxCharsPerConversation,
+    maxTotalChars,
+  })
+
+  if (!transcripts.trim() && !existingContext?.trim()) {
+    return {
+      context: `**${node.label}**\n\nNothing captured yet. Come back after a few conversations touch this node.`,
+    }
+  }
+
+  const existingBlock = existingContext?.trim()
+    ? existingContext.trim()
+    : '(none yet — build the memory from scratch)'
+
+  const transcriptsBlock = transcripts.trim()
+    ? transcripts
+    : '(no new transcripts — tighten or preserve the existing memory)'
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: 'system',
+          content: [
+            {
+              type: 'input_text',
+              text: [
+                await getNodeContextPrompt(),
+                `Node in focus: ${node.label} (${node.type})`,
+                'Existing memory for this node:',
+                existingBlock,
+                'New conversation transcripts tagged with this node (oldest first):',
+                transcriptsBlock,
+              ].join('\n\n'),
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'mirror_node_context',
+          schema: CONTEXT_SCHEMA,
+          strict: true,
+        },
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`OpenAI node-context failed (${response.status}): ${errorText}`)
+  }
+
+  const payload = (await response.json()) as OpenAIResponse
+  const rawText = extractOutputText(payload)
+  if (!rawText) {
+    throw new Error('OpenAI node-context returned no text output')
+  }
+
+  return sanitizeNodeContext(JSON.parse(rawText) as NodeContextResult, node)
+}
+
+function sanitizeNodeContext(result: NodeContextResult, node: NodeInsightNodeRef): NodeContextResult {
+  const context =
+    typeof result.context === 'string' && result.context.trim().length > 0
+      ? result.context.trim()
+      : `**${node.label}**\n\nNothing captured yet.`
+  return { context }
+}
+
+function buildMockNodeContext(
+  node: NodeInsightNodeRef,
+  existingContext: string | null,
+  conversations: NodeInsightConversation[]
+): NodeContextResult {
+  if (existingContext?.trim()) {
+    return { context: existingContext.trim() }
+  }
+  if (conversations.length === 0) {
+    return { context: `**${node.label}**\n\nNothing captured yet.` }
+  }
+  return {
+    context: `**${node.label}**\n\n- Referenced across ${conversations.length} conversation${conversations.length === 1 ? '' : 's'}.\n- Details will fill in as the user talks more about this.`,
+  }
 }
 
 function buildNodeInsightTranscripts(

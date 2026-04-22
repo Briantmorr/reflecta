@@ -7,6 +7,7 @@ export type PromptKey =
   | 'conversation_turn'
   | 'conversation_tagger'
   | 'node_insights'
+  | 'node_context'
 
 export type PromptDefinition = {
   key: PromptKey
@@ -59,6 +60,12 @@ export const PROMPT_DEFINITIONS: PromptDefinition[] = [
     label: 'Node Insights',
     filename: 'node-insights.json',
     description: 'Synthesis shown in node summary for selected map nodes.',
+  },
+  {
+    key: 'node_context',
+    label: 'Node Context',
+    filename: 'node-context.json',
+    description: 'Factual memory distilled from conversations for a single node (also powers the User Profile).',
   },
 ]
 

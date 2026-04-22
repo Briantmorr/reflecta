@@ -6,7 +6,7 @@ import ChatInterface from '@/components/ChatInterface'
 import PsycheGraph from '@/components/PsycheGraph'
 import SettingsModal from '@/components/SettingsModal'
 import { useSettings } from '@/lib/settings'
-import { Conversation, ConversationListItem, Graph, Message, NodeInsights, NodeView } from '@/types'
+import { Conversation, ConversationListItem, Graph, Message, NodeContext, NodeInsights, NodeView } from '@/types'
 
 const DEFAULT_STARTER_QUESTION = "What's been on your mind lately?"
 const NODE_STARTER_QUESTIONS: Record<string, string> = {
@@ -34,6 +34,9 @@ export default function Home() {
   const [nodeView, setNodeView] = useState<NodeView | null>(null)
   const [nodeInsights, setNodeInsights] = useState<NodeInsights | null>(null)
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false)
+  const [nodeContext, setNodeContext] = useState<NodeContext | null>(null)
+  const [isGeneratingContext, setIsGeneratingContext] = useState(false)
+  const [isSavingContext, setIsSavingContext] = useState(false)
   const didAutoOpenConversation = useRef(false)
 
   // ─── Fetchers ──────────────────────────────────────────
@@ -284,6 +287,60 @@ export default function Home() {
     }
   }, [fetchGraph, isGeneratingInsights, nodeView])
 
+  const contextTargetNodeId = useMemo(() => {
+    const nodes = nodeView?.nodes ?? []
+    return nodes.length === 1 ? nodes[0].nodeId : null
+  }, [nodeView])
+
+  const handleGenerateContext = useCallback(async () => {
+    if (!contextTargetNodeId || isGeneratingContext) return
+    setIsGeneratingContext(true)
+    try {
+      const res = await fetch(`/api/nodes/${contextTargetNodeId}/context`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error('Failed to generate context')
+      const data = (await res.json()) as { context: string | null; updatedAt: string | null }
+      if (data.context && data.updatedAt) {
+        setNodeContext({ text: data.context, updatedAt: data.updatedAt })
+      } else {
+        setNodeContext(null)
+      }
+      await fetchGraph()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsGeneratingContext(false)
+    }
+  }, [contextTargetNodeId, fetchGraph, isGeneratingContext])
+
+  const handleSaveContext = useCallback(
+    async (text: string) => {
+      if (!contextTargetNodeId || isSavingContext) return
+      setIsSavingContext(true)
+      try {
+        const res = await fetch(`/api/nodes/${contextTargetNodeId}/context`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ context: text }),
+        })
+        if (!res.ok) throw new Error('Failed to save context')
+        const data = (await res.json()) as { context: string | null; updatedAt: string | null }
+        if (data.context && data.updatedAt) {
+          setNodeContext({ text: data.context, updatedAt: data.updatedAt })
+        } else {
+          setNodeContext(null)
+        }
+        await fetchGraph()
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setIsSavingContext(false)
+      }
+    },
+    [contextTargetNodeId, fetchGraph, isSavingContext]
+  )
+
   const handleSelectNode = useCallback(
     (nodeId: string | null, options?: { additive?: boolean }) => {
       if (!nodeId) {
@@ -345,6 +402,41 @@ export default function Home() {
     setNodeInsights(null)
   }, [graph.nodes, nodeView])
 
+  useEffect(() => {
+    const selected = nodeView?.nodes ?? []
+    if (selected.length !== 1) {
+      setNodeContext(null)
+      return
+    }
+
+    let cancelled = false
+
+    const persisted = graph.nodes.find((node) => node.id === selected[0].nodeId)?.context ?? null
+    setNodeContext(persisted ?? null)
+
+    async function loadNodeContext() {
+      try {
+        const res = await fetch(`/api/nodes/${selected[0].nodeId}/context`)
+        if (!res.ok) throw new Error('Failed to fetch node context')
+        const data = (await res.json()) as { context: string | null; updatedAt: string | null }
+        if (cancelled) return
+        if (data.context && data.updatedAt) {
+          setNodeContext({ text: data.context, updatedAt: data.updatedAt })
+        } else {
+          setNodeContext(null)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+
+    void loadNodeContext()
+
+    return () => {
+      cancelled = true
+    }
+  }, [graph.nodes, nodeView])
+
   const selectedFilterNodeIds =
     nodeView?.nodes.filter((node) => node.type !== 'user').map((node) => node.nodeId) ?? []
   const selectedNodeIds = useMemo(
@@ -392,6 +484,11 @@ export default function Home() {
         nodeInsights={nodeInsights}
         onGenerateInsights={handleGenerateInsights}
         isGeneratingInsights={isGeneratingInsights}
+        nodeContext={nodeContext}
+        onGenerateContext={handleGenerateContext}
+        onSaveContext={handleSaveContext}
+        isGeneratingContext={isGeneratingContext}
+        isSavingContext={isSavingContext}
         side="right"
       />
       <SettingsModal />

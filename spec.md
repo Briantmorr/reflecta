@@ -107,11 +107,70 @@ In node view:
 - selecting `You` shows all convos
 - selecting other node filters convos to notes tagged with it
 - related conversations collapsed by default
-- node insights = second panel below related conversations
-- current insights can be placeholder: `Key patterns: desire for respect, work bleeding over, need for spaciousness`
-- long-term: insights become tasteful synthesis, patterns, reports per node
+- node insights = second panel below related conversations for non-`You` selections
+- node insights surface patterns, tensions, and synthesis across the node's tagged conversations
+- node context = panel below node insights for single-node selections
+- selecting `You` labels this section `User profile`; all other single nodes label it `Node context`
+- node context is factual memory, not interpretation: key facts, relationships, roles, current state, preferences, ongoing situations
+- node context is editable by the user so they can correct, refine, or remove distilled memory
+- node context can be regenerated from the tagged conversations for that node
+- current insights/context may start sparse; long-term they become durable memory + tasteful synthesis per node
 - click another node -> switch node view
 - click empty graph space -> exit node view
+
+## Memory Model
+
+Mirror now has two distinct memory surfaces per node:
+
+1. **Node insights** = interpretive synthesis
+2. **Node context** = factual memory
+
+Rules:
+
+- insights and context must stay separate in prompt design and UI framing
+- insights are for patterns, themes, tensions, and reflective synthesis
+- context is for durable facts a future conversation should be able to rely on without re-asking
+- each graph node may store its own node context
+- the `You` node is the top-most memory surface and acts as the user's global profile
+- node context should be compact, high-signal, and easy to scan/edit
+- user edits are source-of-truth corrections, not just temporary overrides
+
+## Context Generation
+
+- new prompt: `node-context`
+- input = existing node context + conversations tagged to that node
+- output = one compact factual memory block
+- generation behavior should merge, not rewrite blindly:
+  keep still-true facts, add new facts, update changed facts, drop contradicted facts
+- newest transcript wins on conflicts unless the user manually edits the memory afterward
+- context wording should favor short declarative lines / markdown-friendly sections, not paragraphs
+- context should avoid advice, interpretation, therapy-speak, and unsupported inference
+
+## Future Memory Plan
+
+Next pass moves from isolated node memory toward composable context.
+
+Planned prompt grounding for a node conversation:
+
+1. user profile (`You` node context)
+2. current conversation history
+3. current node context
+4. parent / containing node context when relevant
+
+Principles:
+
+- composition should stay small and high-signal; memory is not full transcript replay
+- parent context should provide orientation, not drown out the local node
+- user profile should ground durable identity facts across all nodes
+- current conversation should remain the highest-priority live signal
+- memory must remain user-editable at the node level before more automated composition is added
+
+Deferred:
+
+- auto-refresh node context during or after the tagging/update-map pipeline
+- composing multiple context layers directly into conversation prompts
+- more explicit precedence rules between manual edits, existing memory, and newly generated updates
+- possible future structured memory model behind the editable text surface
 
 ## LLM
 
@@ -129,12 +188,19 @@ Turn responses should:
 - ask at most one grounded follow-up
 - no research/stats unless asked
 
+Node context generation should:
+
+- produce factual memory only
+- merge existing context with newly tagged conversations
+- power both per-node memory and the `You` node's user profile
+- stay editable after generation
+
 ## Prompt Editor
 
 - temporary dev feature under settings/profile
 - gated by `ENABLE_PROMPT_EDITOR=true` and `PROMPT_EDITOR_SECRET`
 - remote prompt persistence uses Firestore via Firebase Admin on server routes only
-- editable prompts: persona, conversation turn, conversation tagger, node insights
+- editable prompts: persona, conversation turn, conversation tagger, node insights, node context
 - prompts render as readable multiline text, not escaped JSON
 - saving creates a new version and activates it
 - previous versions can be loaded into the editor or re-activated
