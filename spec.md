@@ -43,6 +43,9 @@ Rules:
 - edge labels hidden
 - maps feel earned, not noisy
 - every visible non-core node must have a placement edge into a tier-one domain or a supported container
+- nodes should have one best direct parent in the visible hierarchy
+- if a container exists, children attach to that container, not also to the tier-one domain
+- example: `You -> Relationships -> Family -> Mom`, not both `Mom -> Relationships` and `Mom -> Family`
 
 ## Graph Behavior
 
@@ -77,6 +80,7 @@ Tagging rules:
 - distinguish user's own `Fatherhood` from user's `Dad`
 - keep map lean, resist node bloat
 - deterministic placement edges are preferred over arbitrary LLM edge labels
+- visible graph edges are hierarchy/placement edges, not every semantic relationship in the conversation
 - named people default to `Relationships`
 - named people nest under containers only when supported, e.g. `Lena -> Friends -> Relationships`
 - aliases normalize before placement, e.g. `Helping -> Service`, `Proving -> Desire For Approval`

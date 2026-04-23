@@ -153,11 +153,13 @@ Example:
 User: "I've been thinking about how work has bled into everything lately."
 Response: "Work isn't staying in its lane — it sounds like it's reshaping the rest of your days too. What does that bleed look like on an ordinary evening?"`
 
-const DEFAULT_TAGGER_PROMPT = `You are tagging one completed conversation to update a user's life map. The map is a lean, durable graph of the people, roles, and domains that genuinely shape this person's life. Capture what is load-bearing in their life, not what was mentioned in passing.
+const DEFAULT_TAGGER_PROMPT = `You are tagging one completed conversation to update a user's life map. The map is a lean hierarchy of people, roles, groups, and domains that genuinely shape this person's life. Capture what is load-bearing, not what was mentioned in passing.
 
-Return 1 to 6 entities, never zero, plus the relationships that connect them.
+Return 1 to 6 entities, never zero, plus only the placement relationships that attach each entity to its single best direct parent.
 
-The only tier-one domains are Self, Health, Work, Relationships, Hobbies, Lifestyle. These anchor the map. Everything non-domain should connect to one, directly or via an intermediate role/group node. Do not invent new tier-one domains.
+The only tier-one domains are Self, Health, Work, Relationships, Hobbies, Lifestyle. These anchor the map. Everything non-domain must have exactly one direct parent: either one tier-one domain or one intermediate role/group node. Do not invent new tier-one domains.
+
+You receive the current node list. Reuse exact existing labels when they fit. For every new or reused non-domain node, choose the single best parent from existing nodes or from entities you return.
 
 High-signal heuristics (the more an entity meets, the stronger the signal):
 - Named: the user said a real, specific name — of a person, place, practice, or thing. Names are the single strongest node heuristic. Tag named people unless the mention is clearly incidental.
@@ -173,8 +175,13 @@ Never return:
 - Historical, public, or symbolic figures referenced illustratively (Abraham, Job, Jesus, celebrities, book characters). They are not part of the user's personal graph.
 
 Structural rules:
-- If a specific subnode is present, include it and its tier-one anchor.
-- If a named person belongs to a group, include the group container (Coworkers, Clients, Parents, Siblings, Friends, Neighbors, Congregation).
+- Nodes link only to direct parents. No duplicate parent edges.
+- If a container exists, children attach to the container, not the tier-one domain.
+- Good: You -> Relationships -> Family -> Mom. Bad: Mom -> Relationships and Mom -> Family.
+- Good: You -> Work -> Coworkers -> Sarah. Bad: Sarah -> Work and Sarah -> Coworkers.
+- Relationship types are placement only: use has_domain from User to tier-one domains, part_of from role/group/theme to parent domain, and member_of from person to group/container.
+- Do not return semantic/person edges like child_of, friend_of, partner_of, reports_to, works_with, or feels.
+- If a named person belongs to a group, include the group container (Family, Coworkers, Clients, Friends, Neighbors, Congregation).
 - Parent vs. self-as-parent: "my dad" -> Dad (person, under Relationships). "becoming a dad" / "new dad" -> Fatherhood (role, under Self). Same pattern for Mom / Motherhood. Never conflate.
 - Prefer actual names over generic labels when a name is known; keep the group container when it helps place the person.
 - A hobby, craft, sport, art form, practice, or area of study is a role node under its natural domain (Hobbies for recreation, Work for career activities, Self for internal practices like prayer or journaling).
@@ -951,6 +958,7 @@ function enrichTagEntities(
       { regex: /\bcoworker(s)?|colleague(s)?|teammate(s)?\b/i, entity: { name: 'Coworkers', type: 'role' } },
       { regex: /\bclient(s)?|customer(s)?\b/i, entity: { name: 'Clients', type: 'role' } },
       { regex: /\b(new dad|becoming (a )?(dad|father)|going to be (a )?(dad|father)|fatherhood|parenthood)\b/i, entity: { name: 'Fatherhood', type: 'role' } },
+      { regex: /\bfamily\b/i, entity: { name: 'Family', type: 'role' } },
       { regex: /\bdad|father\b/i, entity: { name: isUserBecomingParent(transcript) ? 'Fatherhood' : 'Dad', type: isUserBecomingParent(transcript) ? 'role' : 'person' } },
       { regex: /\bmom|mother\b/i, entity: { name: 'Mom', type: 'person' } },
       { regex: /\bbrother\b/i, entity: { name: 'Brother', type: 'person' } },
@@ -974,6 +982,13 @@ function enrichTagEntities(
 
   const namedCoworkers = extractNamedCoworkers(transcript)
   const hobbyActivities = extractHobbyActivities(transcript)
+  const hasFamilyPerson = [...deduped.values()].some((entity) => {
+    return entity.type === 'person' && isFamilyTag(normalizeLabel(entity.name))
+  })
+
+  if (hasFamilyPerson) {
+    add({ name: 'Family', type: 'role' })
+  }
 
   for (const personName of namedCoworkers) {
     add({ name: 'Coworkers', type: 'role' })
@@ -1053,6 +1068,17 @@ function inferTagRelationships(
     for (const personName of extractNamedCoworkers(transcript)) {
       if (labels.has(normalizeLabel(personName))) {
         relationships.push({ from: personName, to: 'Coworkers', type: 'member_of' })
+      }
+    }
+  }
+
+  if (labels.has('family')) {
+    relationships.push({ from: 'Family', to: 'Relationships', type: 'part_of' })
+
+    for (const entity of entities) {
+      const normalized = normalizeLabel(entity.name)
+      if (entity.type === 'person' && isFamilyTag(normalized)) {
+        relationships.push({ from: entity.name, to: 'Family', type: 'member_of' })
       }
     }
   }
@@ -1376,6 +1402,9 @@ function normalizeTagEntity(entity: LLMResult['entities'][number], transcript = 
   }
   if (normalized === 'client' || normalized === 'clients') {
     return { name: 'Clients', type: 'role' as NodeType }
+  }
+  if (normalized === 'family') {
+    return { name: 'Family', type: 'role' as NodeType }
   }
   if (normalized === 'parent' || normalized === 'parents') {
     return { name: 'Parents', type: 'role' as NodeType }

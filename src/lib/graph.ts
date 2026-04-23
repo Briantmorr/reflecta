@@ -509,6 +509,7 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     'sister',
     'son',
     'daughter',
+    'family',
     'parents',
     'siblings',
     'partner',
@@ -598,7 +599,7 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
 function inferRoleContainer(label: string): string | null {
   const normalized = normalizeLabel(label)
 
-  if (isFamilyPerson(normalized)) return null
+  if (isFamilyPerson(normalized)) return 'Family'
 
   return null
 }
