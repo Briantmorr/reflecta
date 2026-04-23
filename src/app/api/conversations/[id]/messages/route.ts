@@ -48,7 +48,7 @@ export async function POST(request: Request, { params }: Params) {
     })
 
     // 2. LLM turn with conversation + graph context
-    const currentGraph = await getFullGraph()
+    const currentGraph = await getFullGraph({ userId })
     const conversationMessages: Message[] = conversation.messages.map((message) => ({
       id: message.id,
       conversationId: message.conversationId,
@@ -82,7 +82,7 @@ export async function POST(request: Request, { params }: Params) {
       })
     }
 
-    const graph = await getFullGraph()
+    const graph = await getFullGraph({ userId })
 
     return NextResponse.json({
       userMessage,

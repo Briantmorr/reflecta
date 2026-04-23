@@ -31,7 +31,7 @@ export async function POST(_: Request, { params }: Params) {
       return NextResponse.json({ error: 'Conversation is empty' }, { status: 400 })
     }
 
-    const graph = await getFullGraph()
+    const graph = await getFullGraph({ userId })
     const messages: Message[] = conversation.messages.map((message) => ({
       id: message.id,
       conversationId: message.conversationId,
@@ -46,10 +46,10 @@ export async function POST(_: Request, { params }: Params) {
       graph,
     })
 
-    await applyConversationMap(result, conversation.id)
+    await applyConversationMap(result, conversation.id, { userId })
 
     const [updatedGraph, tags] = await Promise.all([
-      getFullGraph(),
+      getFullGraph({ userId }),
       getConversationTags(conversation.id),
     ])
 
@@ -87,7 +87,7 @@ export async function DELETE(request: Request, { params }: Params) {
     await removeConversationTag(params.id, nodeId)
 
     const [updatedGraph, tags] = await Promise.all([
-      getFullGraph(),
+      getFullGraph({ userId }),
       getConversationTags(params.id),
     ])
 

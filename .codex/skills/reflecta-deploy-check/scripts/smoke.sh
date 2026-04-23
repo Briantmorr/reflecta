@@ -30,9 +30,9 @@ check_status() {
 }
 
 home_html="$(curl -fsSL "$BASE_URL/")"
-check_contains "home heading" "$home_html" "Select or start a conversation"
-check_contains "start button" "$home_html" "Start conversation"
-check_contains "graph heading" "$home_html" "Psyche graph"
+check_contains "active reflection pane" "$home_html" "Active reflection"
+check_contains "graph heading" "$home_html" "Mirror map"
+check_contains "workspace pane" "$home_html" "Node Summary"
 
 graph_status="$(curl -s -o /tmp/reflecta-graph.json -w '%{http_code}' "$BASE_URL/api/graph")"
 check_status "graph api" "200" "$graph_status"

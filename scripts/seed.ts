@@ -1,5 +1,5 @@
 /**
- * Seed Mirror's SQLite DB with mock conversations so the psyche graph is
+ * Seed Mirror's configured database with mock conversations so the psyche graph is
  * populated on first load and the demo is visually rich.
  *
  * Run with:  npm run db:seed

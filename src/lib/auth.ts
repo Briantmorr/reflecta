@@ -5,7 +5,7 @@ import { authConfig, AUTH_ENABLED } from '@/lib/auth.config'
 
 /**
  * Full auth instance — includes the Prisma adapter so sessions + accounts
- * persist to SQLite. Imported by API routes and server components that
+ * persist through Prisma in the configured database. Imported by API routes and server components that
  * need `auth()` to read the current session.
  *
  * DO NOT import this from middleware.ts — middleware runs on the edge

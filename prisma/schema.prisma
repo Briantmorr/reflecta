@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ─── Auth (NextAuth / Auth.js) ───────────────────────────────────
@@ -19,6 +19,9 @@ model User {
   accounts      Account[]
   sessions      Session[]
   conversations Conversation[]
+  graphNodes    GraphNode[]
+  graphEdges    GraphEdge[]
+  editedNodeContextVersions NodeContextVersion[] @relation("EditedNodeContextVersions")
 }
 
 model Account {
@@ -98,10 +101,12 @@ model Message {
 // A Node IS a tag. Future messages are auto-tagged against existing nodes.
 model GraphNode {
   id          String        @id @default(cuid())
-  label       String        @unique  // normalized label acts as the tag key
+  label       String        // normalized label acts as the tag key
   type        String        // 'user' | 'person' | 'role' | 'domain' | 'emotion'
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  userId      String?
+  user        User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Every time a node is referenced its weight increases
   mentionCount Int          @default(1)
@@ -116,11 +121,54 @@ model GraphNode {
   // Editable by the user. For the User node this acts as the global user profile.
   contextText        String?
   contextUpdatedAt   DateTime?
+  contextSource      String?
 
   fromEdges   GraphEdge[]   @relation("FromNode")
   toEdges     GraphEdge[]   @relation("ToNode")
   messageRefs MessageNode[]
   conversationRefs ConversationNode[]
+  contextVersions NodeContextVersion[]
+
+  @@unique([userId, label])
+  @@index([userId])
+}
+
+model NodeContextVersion {
+  id        String    @id @default(cuid())
+  nodeId     String
+  node       GraphNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  content   String
+  source    String    // 'generated' | 'user_edit'
+  createdAt DateTime  @default(now())
+
+  editedByUserId String?
+  editedByUser   User? @relation("EditedNodeContextVersions", fields: [editedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([nodeId, createdAt])
+  @@index([editedByUserId])
+}
+
+model PromptConfig {
+  key             String          @id
+  activeVersionId String?         @unique
+  activeVersion   PromptVersion?  @relation("ActivePromptVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+  updatedAt       DateTime?
+  updatedBy       String?
+  versions        PromptVersion[] @relation("PromptConfigVersions")
+}
+
+model PromptVersion {
+  id        String        @id @default(cuid())
+  key       String
+  config    PromptConfig  @relation("PromptConfigVersions", fields: [key], references: [key], onDelete: Cascade)
+  content   String
+  label     String?
+  createdAt DateTime      @default(now())
+  createdBy String?
+
+  activeFor PromptConfig? @relation("ActivePromptVersion")
+
+  @@index([key, createdAt])
 }
 
 model GraphEdge {
@@ -129,13 +177,16 @@ model GraphEdge {
   toId         String
   relationship String
   createdAt    DateTime  @default(now())
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   fromNode     GraphNode @relation("FromNode", fields: [fromId], references: [id], onDelete: Cascade)
   toNode       GraphNode @relation("ToNode",   fields: [toId],   references: [id], onDelete: Cascade)
 
-  @@unique([fromId, toId, relationship])
+  @@unique([userId, fromId, toId, relationship])
   @@index([fromId])
   @@index([toId])
+  @@index([userId])
 }
 
 // Join table: a message is "tagged" with the nodes it references.

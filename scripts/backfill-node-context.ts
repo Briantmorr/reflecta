@@ -1,7 +1,4 @@
 import 'dotenv/config'
-import path from 'node:path'
-
-process.env.DATABASE_URL = `file:${path.join(process.cwd(), 'prisma', 'dev.db')}`
 
 let prismaForDisconnect: typeof import('../src/lib/db').prisma | null = null
 

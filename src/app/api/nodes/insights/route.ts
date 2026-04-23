@@ -21,7 +21,10 @@ export async function POST(request: Request) {
     }
 
     const nodes = await prisma.graphNode.findMany({
-      where: { id: { in: nodeIds } },
+      where: {
+        id: { in: nodeIds },
+        ...(AUTH_ENABLED ? { userId } : { userId: null }),
+      },
     })
     if (nodes.length === 0) {
       return NextResponse.json({ error: 'No matching nodes' }, { status: 404 })

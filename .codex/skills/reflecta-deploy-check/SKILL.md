@@ -22,9 +22,9 @@ Use this skill after shipping or changing frontend behavior that should be verif
 ## What to verify
 
 - Home loads without a server error.
-- Empty state shows `Select or start a conversation`.
-- Empty state shows the `Start conversation` button.
-- Graph pane loads and exposes `Map`.
+- Active reflection pane renders.
+- Graph pane loads and exposes `Mirror map`.
+- Workspace pane exposes `Node Summary`.
 - `GET /api/graph` returns JSON.
 - `GET /api/conversations` returns a non-500 response.
 - `POST /api/conversations` returns `201` when the app should allow public conversation creation.
@@ -33,5 +33,5 @@ Use this skill after shipping or changing frontend behavior that should be verif
 ## Notes
 
 - A clickable UI control can still be broken if its backing API route returns `500`.
-- For this repo, pay special attention to SQLite path mismatches between build-time and Vercel runtime.
+- For this repo, pay special attention to Postgres connectivity from both local Next routes and Vercel runtime.
 - If the smoke script passes but the user still reports a visual problem, use the web tool to inspect the rendered page text.

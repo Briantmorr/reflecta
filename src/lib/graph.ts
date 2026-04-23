@@ -3,6 +3,7 @@ import { LLMResult, NodeType } from '@/types'
 import { displayLabel, normalizeLabel } from './utils'
 
 type PrismaErrorLike = { code?: string }
+type GraphOwner = { userId?: string | null }
 
 const VISIBLE_NODE_TYPES: NodeType[] = ['user', 'person', 'role', 'domain']
 const CORE_TIER_ONE_DOMAINS = ['Self', 'Health', 'Work', 'Relationships', 'Hobbies', 'Lifestyle'] as const
@@ -15,32 +16,36 @@ const CORE_DOMAIN_QUESTIONS: Record<(typeof CORE_TIER_ONE_DOMAINS)[number], stri
   Lifestyle: 'How do I live?',
 }
 
-async function ensureCoreDomainNodes(userNodeId: string) {
+function ownerWhere(userId?: string | null) {
+  return userId ? { userId } : { userId: null }
+}
+
+async function ensureCoreDomainNodes(userNodeId: string, userId?: string | null) {
   const domainIds = new Map<string, string>()
 
   for (const label of CORE_TIER_ONE_DOMAINS) {
-    const nodeId = await upsertNode(label, 'domain')
+    const nodeId = await upsertNode(label, 'domain', { userId })
     domainIds.set(normalizeLabel(label), nodeId)
-    await upsertRelationship(userNodeId, nodeId, 'has_domain')
+    await upsertRelationship(userNodeId, nodeId, 'has_domain', { userId })
   }
 
   return domainIds
 }
 
-export async function ensureUserNode(): Promise<string> {
-  const existing = await prisma.graphNode.findUnique({ where: { label: 'user' } })
+export async function ensureUserNode({ userId }: GraphOwner = {}): Promise<string> {
+  const existing = await prisma.graphNode.findFirst({ where: { ...ownerWhere(userId), label: 'user' } })
   if (existing) return existing.id
 
   const created = await prisma.graphNode.create({
-    data: { label: 'user', type: 'user', mentionCount: 0 },
+    data: { label: 'user', type: 'user', mentionCount: 0, userId: userId ?? null },
   })
   return created.id
 }
 
-export async function upsertNode(rawLabel: string, type: NodeType): Promise<string> {
+export async function upsertNode(rawLabel: string, type: NodeType, { userId }: GraphOwner = {}): Promise<string> {
   const canonicalLabel = canonicalGraphLabel(rawLabel)
   const normalized = normalizeLabel(canonicalLabel)
-  const existing = await prisma.graphNode.findUnique({ where: { label: normalized } })
+  const existing = await prisma.graphNode.findFirst({ where: { ...ownerWhere(userId), label: normalized } })
 
   if (existing) {
     if (existing.type === type) return existing.id
@@ -52,7 +57,7 @@ export async function upsertNode(rawLabel: string, type: NodeType): Promise<stri
   }
 
   const created = await prisma.graphNode.create({
-    data: { label: normalized, type, mentionCount: 0 },
+    data: { label: normalized, type, mentionCount: 0, userId: userId ?? null },
   })
   return created.id
 }
@@ -71,9 +76,10 @@ function canonicalGraphLabel(rawLabel: string) {
 
 export async function applyConversationMap(
   result: LLMResult,
-  conversationId: string
+  conversationId: string,
+  { userId }: GraphOwner = {}
 ): Promise<string[]> {
-  const userNodeId = await ensureUserNode()
+  const userNodeId = await ensureUserNode({ userId })
   const taggableEntities = dedupeEntities(
     result.entities.filter((entity) => entity.type !== 'emotion' && entity.type !== 'user')
   )
@@ -82,43 +88,41 @@ export async function applyConversationMap(
   const taggedNodeIds = new Set<string>()
 
   for (const entity of taggableEntities) {
-    const nodeId = await upsertNode(entity.name, entity.type)
+    const nodeId = await upsertNode(entity.name, entity.type, { userId })
     nodeIdsByLabel.set(normalizeLabel(entity.name), nodeId)
     nodeIdsByLabel.set(normalizeLabel(canonicalGraphLabel(entity.name)), nodeId)
     taggedNodeIds.add(nodeId)
-    await ensureSupportingStructure(entity.name, entity.type, nodeId, userNodeId, nodeIdsByLabel)
+    await ensureSupportingStructure(entity.name, entity.type, nodeId, userNodeId, nodeIdsByLabel, { userId })
   }
 
-  await ensurePersonRoleContainers(taggableEntities, nodeIdsByLabel)
+  await ensurePersonRoleContainers(taggableEntities, nodeIdsByLabel, { userId })
 
   if (taggedNodeIds.size === 0) {
-    const fallback = await createFallbackConversationTag(conversationId)
+    const fallback = await createFallbackConversationTag(conversationId, { userId })
     taggedNodeIds.add(fallback)
   }
 
   for (const relationship of result.relationships) {
-    const fromId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.from)
-    const toId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.to)
+    const fromId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.from, { userId })
+    const toId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.to, { userId })
 
     if (!fromId || !toId || fromId === toId) continue
 
-    await prisma.graphEdge.upsert({
-      where: {
-        fromId_toId_relationship: {
-          fromId,
-          toId,
-          relationship: relationship.type,
-        },
-      },
-      create: { fromId, toId, relationship: relationship.type },
-      update: {},
+    const existingEdge = await prisma.graphEdge.findFirst({
+      where: { ...ownerWhere(userId), fromId, toId, relationship: relationship.type },
+      select: { id: true },
     })
+    if (!existingEdge) {
+      await prisma.graphEdge.create({
+        data: { fromId, toId, relationship: relationship.type, userId: userId ?? null },
+      })
+    }
 
     if (relationship.type === 'member_of') {
-      const parentDomain = inferTierOneDomain(relationship.to, 'role')
+        const parentDomain = inferTierOneDomain(relationship.to, 'role')
       if (parentDomain) {
         const parentDomainId = nodeIdsByLabel.get(normalizeLabel(parentDomain))
-        await removeRelationship(fromId, parentDomainId, 'part_of')
+        await removeRelationship(fromId, parentDomainId, 'part_of', { userId })
       }
     }
   }
@@ -153,19 +157,20 @@ export async function getConversationTags(conversationId: string) {
     }))
 }
 
-export async function getFullGraph() {
+export async function getFullGraph({ userId }: GraphOwner = {}) {
   try {
-    const userNodeId = await ensureUserNode()
-    await ensureCoreDomainNodes(userNodeId)
+    const userNodeId = await ensureUserNode({ userId })
+    await ensureCoreDomainNodes(userNodeId, userId)
 
     const [nodes, edges] = await Promise.all([
       prisma.graphNode.findMany({
+        where: ownerWhere(userId),
         include: {
           _count: { select: { conversationRefs: true } },
         },
         orderBy: { createdAt: 'asc' },
       }),
-      prisma.graphEdge.findMany(),
+      prisma.graphEdge.findMany({ where: ownerWhere(userId) }),
     ])
 
     const visibleNodes = nodes.filter((node) => node.type !== 'emotion') as Array<
@@ -258,7 +263,8 @@ export async function getFullGraph() {
 
 async function getOrCreateRelationshipNode(
   nodeIdsByLabel: Map<string, string>,
-  rawLabel: string
+  rawLabel: string,
+  { userId }: GraphOwner = {}
 ): Promise<string | null> {
   const normalized = normalizeLabel(rawLabel)
   if (normalized === 'user') return nodeIdsByLabel.get('user') ?? null
@@ -270,19 +276,19 @@ async function getOrCreateRelationshipNode(
   const inferredType = inferTypeForTarget(rawLabel)
   if (inferredType === 'emotion') return null
 
-  const nodeId = await upsertNode(rawLabel, inferredType)
+  const nodeId = await upsertNode(rawLabel, inferredType, { userId })
   nodeIdsByLabel.set(normalized, nodeId)
   return nodeId
 }
 
-async function createFallbackConversationTag(conversationId: string): Promise<string> {
+async function createFallbackConversationTag(conversationId: string, { userId }: GraphOwner = {}): Promise<string> {
   const conversation = await prisma.conversation.findUnique({
     where: { id: conversationId },
     select: { title: true },
   })
 
   const fallbackLabel = conversation?.title?.trim() || 'Life'
-  return upsertNode(fallbackLabel, inferTypeForTarget(fallbackLabel))
+  return upsertNode(fallbackLabel, inferTypeForTarget(fallbackLabel), { userId })
 }
 
 function dedupeEntities(result: LLMResult['entities']) {
@@ -357,7 +363,8 @@ async function ensureSupportingStructure(
   type: NodeType,
   nodeId: string,
   userNodeId: string,
-  nodeIdsByLabel: Map<string, string>
+  nodeIdsByLabel: Map<string, string>,
+  { userId }: GraphOwner = {}
 ) {
   const canonicalLabel = canonicalGraphLabel(label)
   const normalized = normalizeLabel(canonicalLabel)
@@ -366,28 +373,29 @@ async function ensureSupportingStructure(
   const domainLabel = inferTierOneDomain(canonicalLabel, type)
   if (!domainLabel) return
 
-  const domainId = await getOrCreateNamedNode(domainLabel, 'domain', nodeIdsByLabel)
-  await upsertRelationship(userNodeId, domainId, 'has_domain')
+  const domainId = await getOrCreateNamedNode(domainLabel, 'domain', nodeIdsByLabel, { userId })
+  await upsertRelationship(userNodeId, domainId, 'has_domain', { userId })
 
   if (type === 'role') {
-    await upsertRelationship(nodeId, domainId, 'part_of')
+    await upsertRelationship(nodeId, domainId, 'part_of', { userId })
     return
   }
 
   const roleLabel = inferRoleContainer(canonicalLabel)
   if (roleLabel) {
-    const roleId = await getOrCreateNamedNode(roleLabel, 'role', nodeIdsByLabel)
-    await upsertRelationship(roleId, domainId, 'part_of')
-    await upsertRelationship(nodeId, roleId, 'member_of')
+    const roleId = await getOrCreateNamedNode(roleLabel, 'role', nodeIdsByLabel, { userId })
+    await upsertRelationship(roleId, domainId, 'part_of', { userId })
+    await upsertRelationship(nodeId, roleId, 'member_of', { userId })
     return
   }
 
-  await upsertRelationship(nodeId, domainId, 'part_of')
+  await upsertRelationship(nodeId, domainId, 'part_of', { userId })
 }
 
 async function ensurePersonRoleContainers(
   entities: Array<{ name: string; type: NodeType }>,
-  nodeIdsByLabel: Map<string, string>
+  nodeIdsByLabel: Map<string, string>,
+  { userId }: GraphOwner = {}
 ) {
   const roleLabels = new Set(
     entities
@@ -406,7 +414,7 @@ async function ensurePersonRoleContainers(
       const coworkersId = nodeIdsByLabel.get('coworkers')
       if (coworkersId) {
         await upsertRelationship(personId, coworkersId, 'member_of')
-        await removeRelationship(personId, nodeIdsByLabel.get('relationships'), 'part_of')
+        await removeRelationship(personId, nodeIdsByLabel.get('relationships'), 'part_of', { userId })
         continue
       }
     }
@@ -419,36 +427,40 @@ async function ensurePersonRoleContainers(
 async function getOrCreateNamedNode(
   label: string,
   type: NodeType,
-  nodeIdsByLabel: Map<string, string>
+  nodeIdsByLabel: Map<string, string>,
+  { userId }: GraphOwner = {}
 ) {
   const normalized = normalizeLabel(label)
   const existing = nodeIdsByLabel.get(normalized)
   if (existing) return existing
 
-  const nodeId = await upsertNode(label, type)
+  const nodeId = await upsertNode(label, type, { userId })
   nodeIdsByLabel.set(normalized, nodeId)
   return nodeId
 }
 
-async function upsertRelationship(fromId: string, toId: string, relationship: string) {
+async function upsertRelationship(fromId: string, toId: string, relationship: string, { userId }: GraphOwner = {}) {
   if (fromId === toId) return
 
-  await prisma.graphEdge.upsert({
-    where: {
-      fromId_toId_relationship: {
-        fromId,
-        toId,
-        relationship,
-      },
-    },
-    create: { fromId, toId, relationship },
-    update: {},
+  const existing = await prisma.graphEdge.findFirst({
+    where: { ...ownerWhere(userId), fromId, toId, relationship },
+    select: { id: true },
+  })
+  if (existing) return
+
+  await prisma.graphEdge.create({
+    data: { fromId, toId, relationship, userId: userId ?? null },
   })
 }
 
-async function removeRelationship(fromId: string, toId: string | undefined, relationship: string) {
+async function removeRelationship(
+  fromId: string,
+  toId: string | undefined,
+  relationship: string,
+  { userId }: GraphOwner = {}
+) {
   if (!toId) return
-  await prisma.graphEdge.deleteMany({ where: { fromId, toId, relationship } })
+  await prisma.graphEdge.deleteMany({ where: { ...ownerWhere(userId), fromId, toId, relationship } })
 }
 
 function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ONE_DOMAINS)[number] | null {

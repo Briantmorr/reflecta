@@ -23,7 +23,7 @@ Light mode default.
 - convo tags applied after user hits `Update map`
 - graph re-renders from convo tags, not per-message extraction
 - imported conversations render like in-app conversations
-- committed `prisma/dev.db` is the Vercel/demo snapshot
+- app persistence target is durable Postgres
 
 ## Core Domains
 
@@ -172,12 +172,101 @@ Deferred:
 - more explicit precedence rules between manual edits, existing memory, and newly generated updates
 - possible future structured memory model behind the editable text surface
 
+## Persistence Direction
+
+Near-term product refactor:
+
+- primary app datastore is Postgres
+- deployment target = Vercel project connected to Postgres via Marketplace integration
+- ORM remains Prisma
+- `DATABASE_URL` becomes the single primary database connection for local, preview, and production
+- Vercel/runtime should rely on `DATABASE_URL`, not bundled database files
+
+Why:
+
+- conversations, graph nodes, graph edges, auth tables, conversation tags, and node memory are relational data
+- node context is now a durable product surface and must support user edits, history, and per-user isolation
+- keeping core product data in Prisma + Postgres gives one durable persistence model for app data and prompt versions
+
+## Storage Model
+
+Canonical storage should live in Postgres for:
+
+- users / sessions / auth tables
+- conversations and messages
+- graph nodes / edges / node tags
+- node insights
+- node context
+- node-context version history
+- prompt versions and active prompt selection
+
+## Prompt Persistence
+
+- prompt versions live in Postgres
+- prompt editor reads and writes through Prisma-backed tables
+- prompt resolution order becomes:
+  active DB version when enabled, then local `prompts/*.json`, then hardcoded fallback
+- local JSON prompt files stay committed defaults and development fallback
+
+This keeps prompt editing in the same persistence model as the rest of the app.
+
+## Node Context Persistence
+
+Node context is now durable product memory.
+
+Requirements:
+
+- current snapshot remains on `GraphNode` for fast reads
+- user edits must persist durably
+- regeneration must persist durably
+- source should be distinguishable (`generated` vs `user_edit`)
+- history / rollback should be possible
+
+Planned shape:
+
+- `GraphNode.contextText`
+- `GraphNode.contextUpdatedAt`
+- `GraphNode.contextSource`
+- `NodeContextVersion` table for append-only history
+
+Write behavior:
+
+- regenerate context:
+  append version row, update current snapshot
+- user edit context:
+  append version row, update current snapshot, mark source as `user_edit`
+
+## User Scoping
+
+Graph storage is user-scope ready.
+
+Requirements:
+
+- conversations belong to one user
+- graph nodes and edges belong to one user
+- node context belongs to one user through its node
+- prompt versions are currently app-global
+
+The relational model includes explicit ownership keys for graph nodes and graph edges.
+
+## Deployment Plan
+
+Target deployment path:
+
+- create Postgres instance from Vercel Marketplace
+- connect DB to Vercel project so `DATABASE_URL` is injected automatically
+- run Prisma migrations against that database
+- keep `postinstall: prisma generate`
+- app data, node context, and prompt versions persist through Postgres
+
+Preview environments should use isolated Postgres databases or branch-safe preview URLs when supported by the provider.
+
 ## LLM
 
 - Provider: OpenAI
 - Model: `gpt-5.4`
 - API: Responses API
-- prompt resolution order: Firestore active version when enabled, then local `prompts/*.json`, then hardcoded fallback
+- prompt resolution order: DB-backed active version when enabled, then local `prompts/*.json`, then hardcoded fallback
 
 Turn responses should:
 
@@ -199,7 +288,7 @@ Node context generation should:
 
 - temporary dev feature under settings/profile
 - gated by `ENABLE_PROMPT_EDITOR=true` and `PROMPT_EDITOR_SECRET`
-- remote prompt persistence uses Firestore via Firebase Admin on server routes only
+- remote prompt persistence target = Postgres via Prisma server routes
 - editable prompts: persona, conversation turn, conversation tagger, node insights, node context
 - prompts render as readable multiline text, not escaped JSON
 - saving creates a new version and activates it
@@ -214,4 +303,4 @@ Node context generation should:
 - `Conversation.sourceRef` is sha256 of raw bytes and prevents duplicate imports
 - `--force` removes prior imported conversations and re-tags
 - imports use same conversation tagger path plus import transcript trimming and author hint
-- local dev usually reads `dev.db`; demo/Vercel snapshot reads committed `prisma/dev.db`
+- local dev and deploys both read the configured `DATABASE_URL`

@@ -61,13 +61,24 @@ export async function populateNodeContextForNode({
   })
 
   const updatedAt = new Date()
-  const updated = await prisma.graphNode.update({
-    where: { id: node.id },
-    data: {
-      contextText: result.context,
-      contextUpdatedAt: updatedAt,
-    },
-  })
+  const [, updated] = await prisma.$transaction([
+    prisma.nodeContextVersion.create({
+      data: {
+        nodeId: node.id,
+        content: result.context,
+        source: 'generated',
+        editedByUserId: userId ?? null,
+      },
+    }),
+    prisma.graphNode.update({
+      where: { id: node.id },
+      data: {
+        contextText: result.context,
+        contextUpdatedAt: updatedAt,
+        contextSource: 'generated',
+      },
+    }),
+  ])
 
   return {
     nodeId: updated.id,

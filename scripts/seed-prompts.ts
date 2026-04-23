@@ -1,13 +1,11 @@
 /**
- * Seed Firestore prompt versions from the local prompts/*.json files.
+ * Seed Postgres-backed prompt versions from local prompts/*.json files.
  *
  * Run with: npm run prompts:seed
  */
 import { loadEnvConfig } from '@next/env'
 import fs from 'node:fs'
 import path from 'node:path'
-import { getFirebaseAdminDb } from '../src/lib/firebaseAdmin'
-import { PROMPT_DEFINITIONS, PromptVersion } from '../src/lib/promptStore'
 
 loadEnvConfig(process.cwd())
 
@@ -28,61 +26,59 @@ function readPromptFile(filename: string) {
 }
 
 async function main() {
-  const db = getFirebaseAdminDb()
-  if (!db) {
-    throw new Error(
-      'Firebase Admin is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.'
-    )
-  }
+  const [{ prisma }, { PROMPT_DEFINITIONS }] = await Promise.all([
+    import('../src/lib/db'),
+    import('../src/lib/promptStore'),
+  ])
 
-  console.log('🌱 Seeding Firestore prompts from prompts/*.json')
+  console.log('🌱 Seeding prompt versions from prompts/*.json')
 
   for (const definition of PROMPT_DEFINITIONS) {
     const content = readPromptFile(definition.filename)
-    const configRef = db.collection('promptConfigs').doc(definition.key)
-    const versionsRef = configRef.collection('versions')
-    const existingSnapshot = await versionsRef.orderBy('createdAt', 'desc').limit(100).get()
-    const existing = existingSnapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() }) as PromptVersion)
-      .find((version) => version.content === content)
+    await prisma.promptConfig.upsert({
+      where: { key: definition.key },
+      create: { key: definition.key },
+      update: {},
+    })
 
-    const now = new Date().toISOString()
+    const existing = await prisma.promptVersion.findFirst({
+      where: { key: definition.key, content },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const now = new Date()
     const seedLabel = `Seeded from prompts/${definition.filename}`
-    const versionRef = existing ? versionsRef.doc(existing.id) : versionsRef.doc()
-    const version: PromptVersion = existing ?? {
-      id: versionRef.id,
-      key: definition.key,
-      content,
-      label: seedLabel,
-      createdAt: now,
-      createdBy: 'prompt-seed',
-    }
 
-    await db.runTransaction(async (transaction) => {
-      if (existing) {
-        transaction.set(
-          versionRef,
-          {
-            key: definition.key,
+    const version = existing
+      ? await prisma.promptVersion.update({
+          where: { id: existing.id },
+          data: {
             label: seedLabel,
           },
-          { merge: true }
-        )
-      } else {
-        transaction.set(versionRef, version)
-      }
+        })
+      : await prisma.promptVersion.create({
+          data: {
+            key: definition.key,
+            content,
+            label: seedLabel,
+            createdBy: 'prompt-seed',
+            createdAt: now,
+          },
+        })
 
-      transaction.set(
-        configRef,
-        {
-          activeVersionId: version.id,
-          promptKey: definition.key,
-          filename: definition.filename,
-          updatedAt: now,
-          updatedBy: 'prompt-seed',
-        },
-        { merge: true }
-      )
+    await prisma.promptConfig.upsert({
+      where: { key: definition.key },
+      create: {
+        key: definition.key,
+        activeVersionId: version.id,
+        updatedAt: now,
+        updatedBy: 'prompt-seed',
+      },
+      update: {
+        activeVersionId: version.id,
+        updatedAt: now,
+        updatedBy: 'prompt-seed',
+      },
     })
 
     console.log(
@@ -93,7 +89,12 @@ async function main() {
   console.log('✨ Prompt seed complete')
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+main()
+  .catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+  .finally(async () => {
+    const { prisma } = await import('../src/lib/db')
+    await prisma.$disconnect()
+  })

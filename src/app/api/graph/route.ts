@@ -10,13 +10,13 @@ export const dynamic = 'force-dynamic'
 // adding userId to GraphNode/GraphEdge — a bigger change saved for later.
 export async function GET() {
   try {
+    const userId = await currentUserId()
     if (AUTH_ENABLED) {
-      const userId = await currentUserId()
       if (!userId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }
-    const graph = await getFullGraph()
+    const graph = await getFullGraph({ userId })
 
     return NextResponse.json(graph)
   } catch (err) {

@@ -1,244 +1,133 @@
-# Conversation Import — Spec
+# Conversation Import Spec
 
-Import folders of user conversations and journal entries, run the existing Mirror conversation tagger on each, and surface them in the app identically to in-app conversations. Output: a seeded `prisma/dev.db` that is committed to the repo and shipped as-is to Vercel deployments.
+Import folders of user conversations and journal entries, run Mirror's existing conversation tagger on each item, and surface imported content identically to in-app conversations.
+
+The import target is the configured Postgres database behind `DATABASE_URL`. There is no committed database snapshot.
 
 ## Goals
 
-- Bulk-ingest a folder of user artifacts (conversations, journals, notes).
-- Reuse the existing Mirror tagger so imported content produces the same durable graph nodes as live chat.
-- Display imported artifacts in conversation history and node view identically to in-app conversations.
-- Produce a committed SQLite snapshot so Vercel deploys need zero OpenAI calls at build or runtime.
+- Bulk-ingest local folders of conversations, journals, and notes.
+- Reuse the same Mirror tagger path as live chat so imported content produces normal graph nodes and conversation tags.
+- Display imported artifacts in history and node view identically to in-app conversations.
+- Make imports idempotent through content hashes.
+- Keep import as an explicit local/operator action, not a build step.
 
-## Non-goals (V1)
+## Non-Goals
 
 - In-app upload UI.
-- Cross-file deduplication or semantic merging.
+- Cross-file semantic deduplication.
 - Editing imported messages in the UI.
 - Importing binary attachments, images, or audio.
+- Shipping seeded data by committing database files.
 
----
+## Decisions
 
-## Decisions (resolved)
-
-1. **Malformed `thread_1.json`** — already fixed by hand; valid JSON with 7 messages.
-2. **Faith / spiritual content** — tags under `Self` with role nodes like `Faith`, `Prayer`, `Church`. No new tier-one domain. Already reflected in `prompts/conversation-tagger.json`.
-3. **Religious figures as people** — add `jesus`, `god`, `christ`, `lord`, `holy`, `spirit` to `PERSON_NAME_STOPWORDS` in `src/lib/llm.ts`. Do **not** add `father` (conflicts with existing Dad/Fatherhood extraction).
-4. **Author-identity hint** — prepended to the **transcript body** passed to the tagger, not injected into the tagger system prompt. Keeps the permanent prompt clean and makes the hint visible alongside the transcript.
-5. **Idempotence** — `Conversation.sourceRef` is the sha256 of raw file bytes and is `@unique`. Same content = same hash = skip. Changed content = different hash = new row. `--force` wipes all prior imported rows (where `sourceRef IS NOT NULL`) before running.
-6. **Snapshot mechanism** — commit `prisma/dev.db` to the repo. No separate snapshot fixture, no `SEED_FROM_SNAPSHOT` flag.
-
----
+1. **Database target**: import writes to the active Prisma/Postgres database selected by `DATABASE_URL`.
+2. **Idempotence**: `Conversation.sourceRef` is the sha256 hash of raw file bytes and is unique.
+3. **Force behavior**: `--force` deletes prior imported conversations only, then re-imports and re-tags.
+4. **Author identity hint**: import prepends a short hint to the transcript passed to the tagger, not to the permanent tagger prompt.
+5. **Faith / spiritual content**: tag under `Self` with role/theme nodes like `Faith`, `Prayer`, and `Church`; do not add a new tier-one domain.
+6. **Religious name stopwords**: `jesus`, `god`, `christ`, `lord`, `holy`, and `spirit` are person-name stopwords.
 
 ## Supported Input Formats
 
-V1 accepts two shapes, detected by file extension. Adapters dispatch by extension.
-
-### 1. OpenAI-style JSON (`*.json`)
+### OpenAI-Style JSON
 
 ```json
-{ "messages": [ { "role": "user" | "assistant" | "system", "content": "..." }, ... ] }
+{ "messages": [ { "role": "user", "content": "..." } ] }
 ```
 
-- `system` messages dropped.
-- `content` assumed to be a plain string. If it is an array of parts, concatenate the text parts in order with `\n\n` between them.
-- Unknown roles dropped with a warning.
+- `user` and `assistant` messages are imported.
+- `system` messages are dropped.
+- String content is used directly.
+- Array content is flattened by joining text parts.
+- Unknown roles are skipped with a warning.
 
-### 2. Plain-text journal (`*.txt`, `*.md`)
+### Plain Text / Markdown
 
-- Whole file becomes a single `user` message.
-- No synthetic assistant reply.
+- `.txt` and `.md` files become one-message conversations.
+- The whole file is stored as a single `user` message.
+- No synthetic assistant reply is created.
 
-### Adapter contract
+## Schema
 
-```ts
-// src/lib/import/types.ts
-export type ImportedMessage = { role: 'user' | 'assistant'; content: string }
-
-export type ImportedConversation = {
-  sourceRef: string          // sha256 of raw file bytes
-  sourceType: 'openai_json' | 'journal_text'
-  sourceName: string         // original filename (no path)
-  title: string
-  messages: ImportedMessage[]
-  importedAt: Date           // set by pipeline, not adapter
-  createdAt: Date            // set by pipeline, not adapter
-}
-
-export type Adapter = (rawBytes: Buffer, filename: string) => Omit<
-  ImportedConversation, 'importedAt' | 'createdAt'
->
-```
-
-Adapters live at `src/lib/import/adapters/openai.ts` and `src/lib/import/adapters/journalText.ts`. Dispatcher at `src/lib/import/index.ts`.
-
----
-
-## Journal-Entry Handling
-
-A journal entry becomes a `Conversation` with exactly one `user` `Message` and no assistant reply.
-
-Required UI verification (do before implementation completes): open the existing `src/components/ChatInterface.tsx` and confirm it renders a conversation with zero assistant messages without crashing, empty-state glitches, or broken scrolling. If it does not, add a minimal guard. Do not add new UI affordances for journals — they render as a single user bubble followed by the normal composer.
-
-Node view: journal entries appear in node-tagged conversation lists the same as any other conversation. No special case needed in `getConversationTags` or node-view components.
-
----
-
-## Schema Changes
-
-Edit `prisma/schema.prisma`, `Conversation` model. Add:
+Imported conversations use nullable metadata on `Conversation`:
 
 ```prisma
-sourceRef   String?   @unique   // sha256 of raw file bytes; null for in-app convos
-sourceType  String?             // 'openai_json' | 'journal_text'; null for in-app
-sourceName  String?             // original filename (no path); null for in-app
-importedAt  DateTime?           // set at import time; null for in-app
+sourceRef  String?  @unique
+sourceType String?
+sourceName String?
+importedAt DateTime?
 ```
 
-All four fields are nullable so in-app conversations continue to work unchanged. `@unique` on `sourceRef` gives cheap idempotence and is the canonical lookup key.
-
-After edits, run `npx prisma db push` to apply. No migration file required since the repo uses `db push`, not `migrate`.
-
----
+These fields stay null for normal in-app conversations.
 
 ## Pipeline
 
-Implemented in `scripts/import.ts`. Executes sequentially (no parallelism) to keep `upsertNode` unique-label logic race-free.
+Implemented in `scripts/import.ts`.
 
-1. **Parse args** — `--dir <path>` (default `seed_conversations`), `--force` (boolean).
-2. **Check API key** — if `OPENAI_API_KEY` is absent, emit `[WARN] No OPENAI_API_KEY — imported convos will tag via mock LLM` once and continue.
-3. **If `--force`** — delete all `Conversation` rows where `sourceRef IS NOT NULL`. Cascade deletes their messages, message-node refs, and conversation-node tags. Graph nodes/edges are left intact (they may still have legitimate refs from in-app conversations).
-4. **Discover files** — list non-hidden files in `--dir`, filter by extension (`.json`, `.txt`, `.md`), sort by filename ascending for deterministic ordering.
-5. **For each file, in order:**
-   1. Read raw bytes. Compute `sourceRef = sha256(bytes)`.
-   2. If a `Conversation` with this `sourceRef` already exists, log `[SKIP] <filename> (already imported)` and continue.
-   3. Look up adapter by extension. Parse. On parse error log `[ERROR] <filename>: <message>` and continue.
-   4. Compute `createdAt = new Date(Date.now() - (index * 86_400_000))` — files earlier in the sort land further in the past. Deterministic within a single run. Since the resulting DB is committed, dates are frozen after the one-time import.
-   5. Create the `Conversation` row (with `sourceRef`, `sourceType`, `sourceName`, `importedAt`, `createdAt`, `title`).
-   6. Create the `Message` rows in order, spacing their `createdAt` by 30 seconds starting from the conversation `createdAt`.
-   7. Load the current graph via `getFullGraph()` from `src/lib/graph.ts`.
-   8. Build the `Message[]` array (with `nodeRefs: []`) from persisted messages. Pass to the import tagger wrapper (see §Tagger Import Path).
-   9. Apply results via `applyConversationMap(result, conversation.id)`.
-   10. Log `[OK] <filename> → tags: [<label>, <label>, ...]`.
-6. **Summary log** — imported count, skipped count, error count, total graph node count.
+1. Parse args: `--dir <path>` defaults to `seed_conversations`; `--force` is optional.
+2. Warn if `OPENAI_API_KEY` is absent; mock tagging may be used in local dev.
+3. If `--force`, delete conversations where `sourceRef IS NOT NULL`.
+4. Discover non-hidden `.json`, `.txt`, and `.md` files.
+5. Sort files by filename for deterministic order.
+6. For each file, compute `sourceRef = sha256(raw bytes)`.
+7. Skip if a conversation with that `sourceRef` already exists.
+8. Parse through the format adapter.
+9. Create the `Conversation` and `Message` rows.
+10. Load current graph context.
+11. Run `generateImportConversationTags`.
+12. Apply tags via `applyConversationMap`.
+13. Log imported, skipped, errored, and total graph-node counts.
 
----
+Imports run sequentially to avoid graph-node upsert races.
 
 ## Tagger Import Path
 
-The existing `generateConversationTags` in `src/lib/llm.ts` stays unchanged for the live-chat path.
+`generateImportConversationTags` reuses the live conversation tagger with import-specific transcript shaping:
 
-Add a new exported function in `src/lib/llm.ts`:
+- Builds the same `User:` / `Mirror:` transcript shape as live tagging.
+- Trims very long transcripts by keeping the beginning and end.
+- Prepends the author-identity hint to the transcript body.
+- Uses the same tagger prompt, result schema, sanitizer, and graph application path as live chat.
 
-```ts
-export async function generateImportConversationTags({
-  conversationMessages,
-  graph,
-  maxTranscriptChars = 12_000,
-}: {
-  conversationMessages: Message[]
-  graph: Graph
-  maxTranscriptChars?: number
-}): Promise<LLMResult>
-```
+## Title Derivation
 
-Behavior (duplicates most of `generateConversationTags`, but applies import-specific transforms):
+1. If there are no user messages, use the filename stem in title case.
+2. Otherwise, use the first substantial user line when possible.
+3. Fall back to the first user message.
+4. Cap generated titles to the same short length as live conversations.
 
-1. Build the transcript string exactly as `generateConversationTags` does (`User: ...` / `Mirror: ...` lines, `\n`-joined).
-2. **Trim** — if `transcript.length > maxTranscriptChars`, keep the first 4,000 chars + `\n\n[...trimmed middle...]\n\n` + the last 6,000 chars. Otherwise leave as-is.
-3. **Prepend author-identity hint** to the transcript (not the system prompt):
-   ```
-   (Note: the author of this transcript is the User. If a first name appears as the author's own name, do not tag it as a separate person node. Tag only other people the author discusses.)
+## Commands
 
-   <transcript>
-   ```
-4. Send to OpenAI with the same schema and tagger system prompt as `generateConversationTags` (reuse `getTaggerPrompt()` and `RESULT_SCHEMA`). Fall back to `mockLLMCall(transcript)` when `OPENAI_API_KEY` is absent.
-5. Return `sanitizeTagResult(parsed, transcript)` (reuse existing sanitizer).
-
-Factor shared logic between `generateConversationTags` and `generateImportConversationTags` into a private helper if cleanliness requires it, but do not regress the existing live-chat path.
-
-Also in `src/lib/llm.ts`: extend `PERSON_NAME_STOPWORDS` with `jesus`, `god`, `christ`, `lord`, `holy`, `spirit`. Do not add `father`.
-
----
-
-## Runner
-
-Add to `package.json` scripts:
-
-```json
-"import:conversations": "tsx scripts/import.ts"
-```
-
-Usage:
-
-```
+```bash
 npm run import:conversations
 npm run import:conversations -- --dir some/other/folder
 npm run import:conversations -- --force
 ```
 
-Arg parsing: hand-rolled against `process.argv.slice(2)`. Two flags only; no dependency added.
+Before importing, ensure the target database has the current schema:
 
-Not chained into `db:reset`. `db:reset` stays mock-only and deterministic. Import is the separate, opt-in, one-time step.
-
----
-
-## Title Derivation
-
-In `scripts/import.ts`, derive the `Conversation.title` as follows:
-
-1. If the conversation has no user messages, use the filename stem with underscores replaced by spaces and Title Case applied. Cap at 80 chars.
-2. Otherwise, take the first user message and split on newlines. Walk the resulting lines in order. Use the first line that is at least 40 characters long. Pass it through existing `deriveConversationTitle` (60-char cap).
-3. If no line meets the 40-char threshold (short journals), fall back to `deriveConversationTitle(firstUserMessage)` directly.
-
-Rationale: journals often open with salutations like `Dear Jesus,` — skipping short opening lines produces a title that actually describes the entry.
-
----
-
-## Vercel Build
-
-Current `vercel-build` script in `package.json`:
-
-```
-node -e "require('fs').rmSync('.next', { recursive: true, force: true })" && node -e "require('fs').rmSync('prisma/dev.db', { force: true })" && DATABASE_URL=file:./prisma/dev.db prisma generate && DATABASE_URL=file:./prisma/dev.db prisma db push --force-reset --accept-data-loss && next build
+```bash
+npm run db:push
 ```
 
-Change to:
+## Vercel / Production
 
-```
-node -e "require('fs').rmSync('.next', { recursive: true, force: true })" && DATABASE_URL=file:./prisma/dev.db prisma generate && next build
-```
+Import is not part of `vercel-build`.
 
-Two changes:
-- Drop the `rmSync('prisma/dev.db')` step. The committed DB must survive the build.
-- Drop `prisma db push --force-reset --accept-data-loss`. Force-reset would wipe the committed seed. Schema is already applied to the committed DB.
+Production data flow:
 
-Also required:
-- Remove `prisma/dev.db` from `.gitignore` if present. Verify before committing the DB.
-- Commit `prisma/dev.db` after the local import completes. Size check: the DB should be comfortably small; if it exceeds ~5 MB, investigate before committing.
-
----
+- Vercel connects to a Postgres provider and injects `DATABASE_URL`.
+- Schema changes are pushed/migrated to that database before deploy verification.
+- Imported conversations are loaded into the same Postgres database when needed.
+- Vercel builds do not create, reset, or ship local database files.
 
 ## Success Criteria
 
-- All 9 files in `seed_conversations/` import cleanly (no parse errors, no tagger errors).
-- Each imported conversation lands 2–6 durable tags consistent with the tagger prompt (no emotions, tier-one domains as anchors, named people preferred).
-- Journal-style entries render as single-bubble conversations in the UI and appear under their tagged nodes in node view.
-- Re-running `npm run import:conversations` with no flags is a no-op: `[SKIP]` for every file.
-- Running with `--force` wipes prior imports and re-tags.
-- The Vercel build succeeds without `OPENAI_API_KEY` and the deployed app shows imported conversations and their graph nodes.
-
----
-
-## Implementation Order
-
-1. **Schema** — edit `prisma/schema.prisma` to add `sourceRef`, `sourceType`, `sourceName`, `importedAt` on `Conversation`. Run `npx prisma db push`.
-2. **Stopwords** — extend `PERSON_NAME_STOPWORDS` in `src/lib/llm.ts` per §Decisions.3.
-3. **Import tagger** — add `generateImportConversationTags` in `src/lib/llm.ts` per §Tagger Import Path.
-4. **Adapters** — create `src/lib/import/types.ts`, `src/lib/import/adapters/openai.ts`, `src/lib/import/adapters/journalText.ts`, `src/lib/import/index.ts` (dispatcher by extension).
-5. **Orchestrator** — create `scripts/import.ts` implementing §Pipeline.
-6. **npm script** — add `import:conversations` to `package.json`.
-7. **Verify `ChatInterface`** — open `src/components/ChatInterface.tsx`, confirm it renders zero-assistant conversations cleanly; add a guard if it does not.
-8. **Dry run** — run `npm run import:conversations` locally against `seed_conversations/` with a real `OPENAI_API_KEY`. Inspect tag quality. If a conversation produces filler-only or off-base tags, iterate on `prompts/conversation-tagger.json` and re-run with `--force`.
-9. **Commit snapshot** — remove `prisma/dev.db` from `.gitignore` if present, commit `prisma/dev.db`.
-10. **Update `vercel-build`** — replace the script per §Vercel Build.
-11. **Smoke deploy** — push to Vercel, verify the deployed app shows all imported conversations and their graph nodes.
+- All supported files in `seed_conversations/` import without parser errors.
+- Each imported conversation receives durable tags consistent with the tagger prompt.
+- Journal-style entries render as single-bubble conversations and appear in tagged node views.
+- Re-running import without flags skips previously imported files.
+- Running import with `--force` replaces prior imported conversations and re-tags them.
+- Local and Vercel runtime both read imported data from the configured Postgres database.

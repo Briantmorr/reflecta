@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { getFirebaseAdminDb } from '@/lib/firebaseAdmin'
+import { prisma } from '@/lib/db'
 
 export type PromptKey =
   | 'mirror_persona'
@@ -159,54 +159,60 @@ export async function createPromptVersion({
   if (!definition) throw new Error(`Unknown prompt key: ${key}`)
   if (!content.trim()) throw new Error('Prompt content is required')
 
-  const db = getFirebaseAdminDb()
-  if (!db) throw new Error('Firebase Admin is not configured')
+  const createdAt = new Date()
+  const version = await prisma.$transaction(async (tx) => {
+    await tx.promptConfig.upsert({
+      where: { key },
+      create: { key },
+      update: {},
+    })
 
-  const now = new Date().toISOString()
-  const configRef = db.collection('promptConfigs').doc(key)
-  const versionRef = configRef.collection('versions').doc()
-  const version: PromptVersion = {
-    id: versionRef.id,
-    key,
-    content,
-    label: label?.trim() || null,
-    createdAt: now,
-    createdBy: createdBy?.trim() || null,
-  }
-
-  await db.runTransaction(async (transaction) => {
-    transaction.set(versionRef, version)
-    transaction.set(
-      configRef,
-      {
-        activeVersionId: versionRef.id,
-        updatedAt: now,
-        updatedBy: version.createdBy,
+    const created = await tx.promptVersion.create({
+      data: {
+        key,
+        content,
+        label: label?.trim() || null,
+        createdBy: createdBy?.trim() || null,
+        createdAt,
       },
-      { merge: true }
-    )
+    })
+
+    await tx.promptConfig.update({
+      where: { key },
+      data: {
+        activeVersionId: created.id,
+        updatedAt: createdAt,
+        updatedBy: created.createdBy,
+      },
+    })
+
+    return created
   })
 
-  return version
+  return normalizeVersionRow(version)
 }
 
 export async function activatePromptVersion(key: PromptKey, versionId: string, updatedBy?: string) {
-  const db = getFirebaseAdminDb()
-  if (!db) throw new Error('Firebase Admin is not configured')
+  const version = await prisma.promptVersion.findFirst({
+    where: { id: versionId, key },
+    select: { id: true },
+  })
+  if (!version) throw new Error('Prompt version not found')
 
-  const configRef = db.collection('promptConfigs').doc(key)
-  const versionRef = configRef.collection('versions').doc(versionId)
-  const version = await versionRef.get()
-  if (!version.exists) throw new Error('Prompt version not found')
-
-  await configRef.set(
-    {
+  await prisma.promptConfig.upsert({
+    where: { key },
+    create: {
+      key,
       activeVersionId: versionId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date(),
       updatedBy: updatedBy?.trim() || null,
     },
-    { merge: true }
-  )
+    update: {
+      activeVersionId: versionId,
+      updatedAt: new Date(),
+      updatedBy: updatedBy?.trim() || null,
+    },
+  })
 }
 
 async function readRemotePrompt(key: PromptKey) {
@@ -223,34 +229,34 @@ async function readRemotePromptState(key: PromptKey): Promise<{
     return { activeVersionId: null, content: null, versions: [] }
   }
 
-  const db = getFirebaseAdminDb()
-  if (!db) {
-    return { activeVersionId: null, content: null, versions: [] }
-  }
-
   try {
-    const configRef = db.collection('promptConfigs').doc(key)
-    const [configSnapshot, versionsSnapshot] = await Promise.all([
-      configRef.get(),
-      configRef.collection('versions').orderBy('createdAt', 'desc').limit(25).get(),
+    const [config, versions] = await Promise.all([
+      prisma.promptConfig.findUnique({
+        where: { key },
+        select: { activeVersionId: true },
+      }),
+      prisma.promptVersion.findMany({
+        where: { key },
+        orderBy: { createdAt: 'desc' },
+        take: 25,
+      }),
     ])
 
-    const activeVersionId = configSnapshot.exists
-      ? ((configSnapshot.data()?.activeVersionId as string | undefined) ?? null)
-      : null
-    const versions = versionsSnapshot.docs.map((doc) => normalizeVersion(doc.id, doc.data()))
+    const activeVersionId = config?.activeVersionId ?? null
+    const normalizedVersions = versions.map(normalizeVersionRow)
     const activeVersion = activeVersionId
-      ? versions.find((version) => version.id === activeVersionId) ??
-        normalizeVersion(
-          activeVersionId,
-          (await configRef.collection('versions').doc(activeVersionId).get()).data()
+      ? normalizedVersions.find((version) => version.id === activeVersionId) ??
+        normalizeVersionRow(
+          await prisma.promptVersion.findUniqueOrThrow({
+            where: { id: activeVersionId },
+          })
         )
       : null
 
     return {
       activeVersionId,
       content: activeVersion?.content ?? null,
-      versions,
+      versions: normalizedVersions,
     }
   } catch (error) {
     console.warn(`[promptStore] Remote prompt read failed for ${key}:`, error)
@@ -258,13 +264,20 @@ async function readRemotePromptState(key: PromptKey): Promise<{
   }
 }
 
-function normalizeVersion(id: string, data: FirebaseFirestore.DocumentData | undefined): PromptVersion {
+function normalizeVersionRow(version: {
+  id: string
+  key: string
+  content: string
+  label: string | null
+  createdAt: Date
+  createdBy: string | null
+}): PromptVersion {
   return {
-    id,
-    key: data?.key,
-    content: typeof data?.content === 'string' ? data.content : '',
-    label: typeof data?.label === 'string' ? data.label : null,
-    createdAt: typeof data?.createdAt === 'string' ? data.createdAt : '',
-    createdBy: typeof data?.createdBy === 'string' ? data.createdBy : null,
-  } as PromptVersion
+    id: version.id,
+    key: version.key as PromptKey,
+    content: version.content,
+    label: version.label,
+    createdAt: version.createdAt.toISOString(),
+    createdBy: version.createdBy,
+  }
 }

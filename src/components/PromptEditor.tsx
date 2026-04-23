@@ -23,7 +23,7 @@ type PromptState = {
 
 type PromptResponse = {
   remoteEnabled: boolean
-  firebaseConfigured: boolean
+  storageBackend: string
   prompts: PromptState[]
 }
 
@@ -193,11 +193,11 @@ export default function PromptEditor() {
           </button>
         </div>
         <p className="text-xs leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
-          Saves create Firestore versions and activate the newest version. Local JSON prompts remain the fallback.
+          Saves create DB-backed prompt versions and activate the newest version. Local JSON prompts remain the fallback.
         </p>
         {data && (
           <p className="mt-2 text-xs" style={{ color: 'var(--mirror-muted)' }}>
-            Remote prompts: {data.remoteEnabled ? 'enabled' : 'disabled'} · Firebase: {data.firebaseConfigured ? 'configured' : 'missing'}
+            Remote prompts: {data.remoteEnabled ? 'enabled' : 'disabled'} · Storage: {data.storageBackend}
           </p>
         )}
       </div>

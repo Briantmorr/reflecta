@@ -42,6 +42,7 @@ The graph stays intentionally lean:
 npm install
 cp .env.example .env.local
 cp .env.example .env
+# edit DATABASE_URL to point at Postgres
 npm run db:push
 npm run dev
 ```
@@ -58,10 +59,7 @@ npm run db:reset
 # Seed the current DB without resetting
 npm run db:seed
 
-# Apply schema changes to the committed Vercel/demo snapshot DB
-npm run db:push:snapshot
-
-# Import seed_conversations/ into prisma/dev.db
+# Import seed_conversations/ into the configured Postgres database
 npm run import:conversations
 
 # Re-import from scratch, replacing prior imported conversations
@@ -71,12 +69,15 @@ npm run import:conversations -- --force
 By default:
 
 - local auth is off
-- SQLite is used
-- local dev reads `DATABASE_URL`, normally `file:./dev.db`
-- Vercel/demo deploys ship the committed snapshot at `prisma/dev.db`
+- Postgres is used
+- local dev reads `DATABASE_URL`
+- Vercel should inject `DATABASE_URL` from its connected Postgres provider
+- durable production target is Postgres via Prisma on Vercel
 - if `OPENAI_API_KEY` is missing, the app falls back to the mock LLM
 
-If you change the Prisma schema and already have a local `dev.db`, run `npm run db:push` before restarting `npm run dev`. This preserves local conversations while adding nullable columns/indexes. To preview the committed import snapshot locally, start dev with `DATABASE_URL=file:./prisma/dev.db npm run dev` or temporarily point `.env` at `file:./prisma/dev.db`.
+If you change the Prisma schema, run `npm run db:push` before restarting `npm run dev`.
+
+Local dev uses the standard Next compiler. Turbopack is currently avoided because the Prisma Postgres driver adapter can fail route requests under `next dev --turbo`.
 
 ## Prompt Editing
 
@@ -141,39 +142,22 @@ Each file has one field:
 
 The settings/profile modal includes a temporary Prompt Editor for non-technical prompt iteration. It is disabled unless explicitly configured.
 
-This feature uses Firebase Admin on server-only API routes. The Firebase browser SDK config from the Firebase console identifies the project, but prompt persistence needs a service-account private key because the app writes Firestore from Next.js API routes.
-
-Firestore setup:
-
-1. In Firebase Console, open the `mirror-57d7a` project.
-2. Create/enable a Firestore database.
-3. Go to Project Settings -> Service accounts -> Generate new private key.
-4. Copy these fields from the downloaded JSON into `.env.local` and Vercel env vars:
-   - `project_id` -> `FIREBASE_PROJECT_ID`
-   - `client_email` -> `FIREBASE_CLIENT_EMAIL`
-   - `private_key` -> `FIREBASE_PRIVATE_KEY`
-   - Do not use `private_key_id`; that is only an identifier and will fail PEM parsing.
-5. Keep `FIREBASE_PRIVATE_KEY` wrapped in quotes. If entering it in a single-line env field, preserve escaped `\n` newlines.
-
 Required env:
 
 ```bash
 ENABLE_PROMPT_EDITOR=true
 ENABLE_REMOTE_PROMPTS=true
 PROMPT_EDITOR_SECRET=shared-dev-secret
-FIREBASE_PROJECT_ID=mirror-57d7a
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...@mirror-57d7a.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
 Behavior:
 
-- UI edits are saved as Firestore prompt versions and immediately activated.
+- UI edits are saved as Postgres-backed prompt versions and immediately activated.
 - `prompts/*.json` remain the readable repo fallback.
-- LLM calls resolve prompts as Firestore active version first, local JSON fallback second.
+- LLM calls resolve prompts as DB active version first, local JSON fallback second.
 - API access requires `x-prompt-editor-secret`; do not enable this on a public deployment without a shared secret.
 
-Seed Firestore from the committed prompt files:
+Seed DB prompt versions from the committed prompt files:
 
 ```bash
 npm run prompts:seed
@@ -186,26 +170,23 @@ The seed is idempotent: it reuses an existing matching version when possible, ot
 Main vars:
 
 - `OPENAI_API_KEY`: enables real GPT-5.4 responses and tagging
-- `DATABASE_URL`: local Prisma/SQLite path, default is `file:./dev.db`
+- `DATABASE_URL`: required Postgres connection string
 - `AUTH_ENABLED`: turns sign-in on or off
 - `AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: required only when auth is enabled
 - `ENABLE_PROMPT_EDITOR`, `ENABLE_REMOTE_PROMPTS`, `PROMPT_EDITOR_SECRET`: optional dev prompt editor
-- `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`: Firestore persistence for remote prompt versions
 
 See [.env.example](/Users/brianmorris/dev/projects/llm_journal/.env.example).
 
 ## Deployment Notes
 
-Vercel currently uses bundled SQLite for preview/demo environments.
+Vercel deployment target is Postgres-backed Prisma.
 
-Current behavior:
+Expected setup:
 
-- `prisma/dev.db` is committed as the deploy snapshot
-- imports are run locally with `npm run import:conversations`
-- runtime copies that bundled DB to `/tmp/dev.db`
-- data is writable during runtime but still ephemeral across cold starts
-
-That means Vercel deploys are useful for previewing the product, not for durable user storage.
+- connect a Postgres provider to the Vercel project through Marketplace
+- let Vercel inject `DATABASE_URL`
+- run Prisma schema changes against that database
+- app data, node context, and prompt versions all persist through Prisma/Postgres
 
 Build entry:
 

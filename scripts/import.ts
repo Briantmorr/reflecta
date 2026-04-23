@@ -6,8 +6,6 @@ import { getImportAdapter } from '../src/lib/import'
 import type { ImportedMessage } from '../src/lib/import'
 import type { Message } from '../src/types'
 
-process.env.DATABASE_URL = `file:${path.join(process.cwd(), 'prisma', 'dev.db')}`
-
 const SUPPORTED_EXTENSIONS = new Set(['.json', '.txt', '.md'])
 const ONE_DAY_MS = 86_400_000
 const MESSAGE_SPACING_MS = 30_000
