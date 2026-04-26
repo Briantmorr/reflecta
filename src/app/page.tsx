@@ -633,50 +633,60 @@ export default function Home() {
 
   return (
     <main
-      className="flex h-screen overflow-hidden"
+      className="relative h-screen overflow-hidden"
       style={{ background: 'var(--mirror-bg)' }}
     >
-      <ChatInterface
-        conversation={activeConversation}
-        starterPrompt={starterPrompt}
-        onCreateConversation={handleCreate}
-        onSendMessage={handleSendMessage}
-        onDeleteConversation={handleDelete}
-        isSending={isSending}
-        onUpdateTags={handleUpdateTags}
-        onRemoveTag={handleRemoveTag}
-        isUpdatingTags={isUpdatingTags}
-        assistantDraft={assistantDraft}
-        layout="side"
-        side="left"
-      />
-      <PsycheGraph
-        graph={graph}
-        highlightedNodeIds={highlightedNodeIds}
-        selectedNodeIds={selectedNodeIds}
-        onSelectNode={handleSelectNode}
-        layout="primary"
-      />
-      <ConversationList
-        conversations={visibleConversations}
-        activeConversationId={activeConversation?.id ?? null}
-        onSelect={handleSelect}
-        onDelete={handleDelete}
-        nodeView={nodeView}
-        onClearNodeView={() => handleSelectNode(null)}
-        onRenameNode={handleRenameNode}
-        onDeleteNode={handleDeleteNode}
-        onResetAppData={handleResetAppData}
-        nodeInsights={nodeInsights}
-        onGenerateInsights={handleGenerateInsights}
-        isGeneratingInsights={isGeneratingInsights}
-        nodeContext={nodeContext}
-        onGenerateContext={handleGenerateContext}
-        onSaveContext={handleSaveContext}
-        isGeneratingContext={isGeneratingContext}
-        isSavingContext={isSavingContext}
-        side="right"
-      />
+      <div className="absolute inset-0 z-0">
+        <PsycheGraph
+          graph={graph}
+          highlightedNodeIds={highlightedNodeIds}
+          selectedNodeIds={selectedNodeIds}
+          onSelectNode={handleSelectNode}
+          layout="primary"
+        />
+      </div>
+      <div className="pointer-events-none absolute inset-y-4 left-4 z-20">
+        <div className="pointer-events-auto h-full">
+          <ChatInterface
+            conversation={activeConversation}
+            starterPrompt={starterPrompt}
+            onCreateConversation={handleCreate}
+            onSendMessage={handleSendMessage}
+            onDeleteConversation={handleDelete}
+            isSending={isSending}
+            onUpdateTags={handleUpdateTags}
+            onRemoveTag={handleRemoveTag}
+            isUpdatingTags={isUpdatingTags}
+            assistantDraft={assistantDraft}
+            layout="side"
+            side="left"
+          />
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-y-4 right-4 z-20">
+        <div className="pointer-events-auto h-full">
+          <ConversationList
+            conversations={visibleConversations}
+            activeConversationId={activeConversation?.id ?? null}
+            onSelect={handleSelect}
+            onDelete={handleDelete}
+            nodeView={nodeView}
+            onClearNodeView={() => handleSelectNode(null)}
+            onRenameNode={handleRenameNode}
+            onDeleteNode={handleDeleteNode}
+            onResetAppData={handleResetAppData}
+            nodeInsights={nodeInsights}
+            onGenerateInsights={handleGenerateInsights}
+            isGeneratingInsights={isGeneratingInsights}
+            nodeContext={nodeContext}
+            onGenerateContext={handleGenerateContext}
+            onSaveContext={handleSaveContext}
+            isGeneratingContext={isGeneratingContext}
+            isSavingContext={isSavingContext}
+            side="right"
+          />
+        </div>
+      </div>
       <SettingsModal />
     </main>
   )

@@ -182,23 +182,6 @@ export async function getFullGraph({ userId }: GraphOwner = {}) {
       (edge) => visibleNodeIds.has(edge.fromId) && visibleNodeIds.has(edge.toId)
     )
 
-    const domainNodeIds = new Set(
-      visibleNodes
-        .filter((node) => node.type === 'domain')
-        .map((node) => node.id)
-        .filter((domainId) =>
-          visibleEdges.some((edge) => {
-            const isConnected =
-              (edge.fromId === domainId && edge.toId !== domainId) ||
-              (edge.toId === domainId && edge.fromId !== domainId)
-            if (!isConnected) return false
-            const otherId = edge.fromId === domainId ? edge.toId : edge.fromId
-            const other = visibleNodes.find((node) => node.id === otherId)
-            return !!other && other.type !== 'user' && other.type !== 'domain'
-          })
-        )
-    )
-
     const finalNodes = visibleNodes.filter((node) => {
       if (node.label === 'user') return true
       if (!VISIBLE_NODE_TYPES.includes(node.type as NodeType)) return false
@@ -209,6 +192,7 @@ export async function getFullGraph({ userId }: GraphOwner = {}) {
     })
 
     const finalNodeIds = new Set(finalNodes.map((node) => node.id))
+    const finalNodeById = new Map(finalNodes.map((node) => [node.id, node]))
     const graphUserNodeId = finalNodes.find((node) => node.label === 'user')?.id
     const finalEdges = visibleEdges.filter((edge) => {
       if (!finalNodeIds.has(edge.fromId) || !finalNodeIds.has(edge.toId)) return false
@@ -223,6 +207,22 @@ export async function getFullGraph({ userId }: GraphOwner = {}) {
       // Keep the center node visually clean: only first-ring containers connect to "You".
       return otherNode.type === 'domain' || otherNode.type === 'role'
     })
+    const activeDomainNodeIds = new Set(
+      finalNodes
+        .filter((node) => node.type === 'domain')
+        .map((node) => node.id)
+        .filter((domainId) =>
+          finalEdges.some((edge) => {
+            const isConnected =
+              (edge.fromId === domainId && edge.toId !== domainId) ||
+              (edge.toId === domainId && edge.fromId !== domainId)
+            if (!isConnected) return false
+            const otherId = edge.fromId === domainId ? edge.toId : edge.fromId
+            const other = finalNodeById.get(otherId)
+            return !!other && other.type !== 'user' && other.type !== 'domain'
+          })
+        )
+    )
 
     return {
       nodes: finalNodes.map((node) => ({
@@ -232,11 +232,11 @@ export async function getFullGraph({ userId }: GraphOwner = {}) {
         mentionCount:
           node.type === 'user'
             ? 0
-            : node.type === 'domain' && !domainNodeIds.has(node.id)
+            : node.type === 'domain' && !activeDomainNodeIds.has(node.id)
               ? 0
               : Math.max(node._count.conversationRefs, 1),
         createdAt: node.createdAt.toISOString(),
-        dormant: node.type === 'domain' && !domainNodeIds.has(node.id),
+        dormant: node.type === 'domain' && !activeDomainNodeIds.has(node.id),
         question:
           node.type === 'domain'
             ? CORE_DOMAIN_QUESTIONS[displayLabel(node.label) as keyof typeof CORE_DOMAIN_QUESTIONS]

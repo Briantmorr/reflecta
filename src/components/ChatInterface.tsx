@@ -119,16 +119,17 @@ export default function ChatInterface({
   if (!conversation && !starterPrompt) {
     return (
       <aside
-        className="relative flex h-screen flex-col"
+        className="relative flex h-full flex-col overflow-hidden rounded-[34px]"
         style={{
           width: layout === 'side' ? sideWidth : 'auto',
           flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
-          background: 'var(--mirror-pane)',
+          background: 'color-mix(in srgb, var(--mirror-pane) 92%, transparent)',
+          backdropFilter: 'blur(22px)',
           boxShadow:
             layout === 'side'
               ? side === 'right'
-                ? '-12px 0 28px rgba(53, 42, 27, 0.035)'
-                : '12px 0 28px rgba(53, 42, 27, 0.035)'
+                ? '-18px 0 42px rgba(53, 42, 27, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.42)'
+                : '18px 0 42px rgba(53, 42, 27, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.42)'
               : 'none',
         }}
       >
@@ -175,16 +176,17 @@ export default function ChatInterface({
 
   return (
     <aside
-      className="flex h-screen min-w-0 flex-col overflow-hidden"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-[34px]"
       style={{
         width: layout === 'side' ? sideWidth : 'auto',
         flex: layout === 'side' ? '0 0 auto' : '1 1 auto',
-        background: 'var(--mirror-pane)',
+        background: 'color-mix(in srgb, var(--mirror-pane) 92%, transparent)',
+        backdropFilter: 'blur(22px)',
         boxShadow:
           layout === 'side'
             ? side === 'right'
-              ? '-12px 0 28px rgba(53, 42, 27, 0.035)'
-              : '12px 0 28px rgba(53, 42, 27, 0.035)'
+              ? '-18px 0 42px rgba(53, 42, 27, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.42)'
+              : '18px 0 42px rgba(53, 42, 27, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.42)'
             : 'none',
       }}
     >

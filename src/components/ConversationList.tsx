@@ -172,15 +172,16 @@ export default function ConversationList({
 
   return (
     <aside
-      className="flex h-screen overflow-hidden select-none"
+      className="flex h-full overflow-hidden select-none rounded-[34px]"
       style={{
         width: '280px',
         flexShrink: 0,
-        background: 'var(--mirror-nav)',
+        background: 'color-mix(in srgb, var(--mirror-nav) 92%, transparent)',
+        backdropFilter: 'blur(22px)',
         boxShadow:
           side === 'right'
-            ? '-12px 0 28px rgba(53, 42, 27, 0.035)'
-            : '12px 0 28px rgba(53, 42, 27, 0.035)',
+            ? '-18px 0 42px rgba(53, 42, 27, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.38)'
+            : '18px 0 42px rgba(53, 42, 27, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.38)',
       }}
     >
       <div className="flex h-full w-full flex-col">

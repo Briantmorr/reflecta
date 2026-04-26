@@ -634,9 +634,9 @@ export default function PsycheGraph({
 
   return (
     <section
-      className="flex h-screen overflow-hidden"
+      className="relative flex h-full overflow-hidden"
       style={{
-        width: layout === 'primary' ? 'auto' : '420px',
+        width: layout === 'primary' ? '100%' : '420px',
         flex: layout === 'primary' ? '1 1 auto' : '0 0 auto',
         minWidth: 0,
         background: 'var(--mirror-pane)',
@@ -647,99 +647,8 @@ export default function PsycheGraph({
       }}
     >
       <div className="flex h-full w-full flex-col">
-        {layout === 'primary' && (
-          <div className="px-4 pb-0 pt-2">
-            <div
-              className="rounded-[28px] px-5 py-3.5"
-              style={{
-                background:
-                  'linear-gradient(135deg, color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-pane)) 0%, var(--mirror-pane) 55%, color-mix(in srgb, var(--mirror-accent) 5%, var(--mirror-surface)) 100%)',
-                boxShadow:
-                  '0 12px 30px rgba(53, 42, 27, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6)',
-              }}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <div
-                      className="flex h-7 w-7 items-center justify-center rounded-full"
-                      style={{
-                        background:
-                          'linear-gradient(135deg, var(--mirror-accent-subtle), color-mix(in srgb, var(--mirror-accent) 24%, transparent))',
-                        boxShadow:
-                          '0 6px 14px color-mix(in srgb, var(--mirror-accent) 15%, transparent)',
-                      }}
-                    >
-                      <Activity size={12} style={{ color: 'var(--mirror-accent)' }} />
-                    </div>
-                    <div
-                      className="text-[11px] font-semibold uppercase tracking-[0.24em]"
-                      style={{ color: 'var(--mirror-secondary)' }}
-                    >
-                      Mirror map
-                    </div>
-                  </div>
-                  <h1 className="text-lg font-semibold" style={{ color: 'var(--mirror-text)' }}>
-                    A living map of your inner world
-                  </h1>
-                  <p
-                    className="mt-0.5 max-w-2xl text-[13px] leading-relaxed"
-                    style={{ color: 'var(--mirror-secondary)' }}
-                  >
-                    People, themes, and patterns take shape as you reflect.
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span
-                      className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
-                      style={{
-                        background: 'color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
-                        color: 'var(--mirror-accent)',
-                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
-                      }}
-                    >
-                      Patterns
-                    </span>
-                    <span
-                      className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
-                      style={{
-                        background: 'color-mix(in srgb, var(--node-person-border) 12%, transparent)',
-                        color: 'var(--node-person-border)',
-                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--node-person-border) 14%, transparent)',
-                      }}
-                    >
-                      People
-                    </span>
-                    <span
-                      className="rounded-full px-2.5 py-0.5 text-[10px] font-medium"
-                      style={{
-                        background: 'color-mix(in srgb, var(--node-role-border) 12%, transparent)',
-                        color: 'var(--node-role-border)',
-                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--node-role-border) 14%, transparent)',
-                      }}
-                    >
-                      Themes
-                    </span>
-                  </div>
-                </div>
-                <div className="hidden flex-wrap justify-end gap-2 md:flex">
-                  <span
-                    className="rounded-full px-2.5 py-1 text-[10px] font-medium"
-                    style={{
-                      background: 'var(--mirror-surface)',
-                      color: 'var(--mirror-secondary)',
-                      boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
-                    }}
-                  >
-                    {graph.nodes.length} nodes
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div
-          className={`psyche-glass-frame relative flex-1 overflow-hidden ${layout === 'primary' ? 'm-3 rounded-[40px]' : 'm-3 rounded-[28px]'}`}
+          className={`psyche-glass-frame relative flex-1 overflow-hidden ${layout === 'primary' ? 'm-0 rounded-none' : 'm-3 rounded-[28px]'}`}
         >
           <div className="psyche-glass-aurora" aria-hidden="true" />
           {graph.nodes.length === 0 ? (
@@ -824,7 +733,7 @@ export default function PsycheGraph({
         </div>
 
         <div
-          className={`flex flex-shrink-0 justify-center ${layout === 'primary' ? 'px-5 pb-4 pt-0' : 'px-4 pb-4 pt-1'}`}
+          className={`${layout === 'primary' ? 'pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2' : 'flex flex-shrink-0 justify-center px-4 pb-4 pt-1'}`}
         >
           <div
             className="flex items-center gap-3 rounded-full px-3 py-2"
