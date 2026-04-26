@@ -64,7 +64,46 @@ npm run import:conversations
 
 # Re-import from scratch, replacing prior imported conversations
 npm run import:conversations -- --force
+
+# Save the current app data as a reusable dev fixture
+npm run db:snapshot:dev
+
+# Restore the saved dev fixture into the configured Postgres DB
+npm run db:load:dev-snapshot
+
+# Clear app data back to empty while preserving schema and prompt versions
+npm run db:clear:app-data
 ```
+
+### Dev DB snapshots
+
+The current curated development dataset is saved at:
+
+```text
+prisma/seed-data/dev-snapshot.json
+```
+
+It includes conversations, messages, graph nodes, graph edges, conversation-node tags, message-node refs, and node context version history. It does not include prompt versions; prompts stay managed by `prompts:seed` / the prompt editor tables.
+
+To return to this saved dataset later:
+
+```bash
+npm run db:load:dev-snapshot
+```
+
+To go back to an empty app after testing the seeded state:
+
+```bash
+npm run db:clear:app-data
+```
+
+To replace the fixture with whatever is currently in your configured `DATABASE_URL`:
+
+```bash
+npm run db:snapshot:dev
+```
+
+These commands operate on the database pointed to by `DATABASE_URL`, so confirm `.env` / `.env.local` before running them against Vercel or another shared database.
 
 By default:
 

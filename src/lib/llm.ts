@@ -2,6 +2,7 @@ import { Graph, LLMResult, Message, NodeType } from '@/types'
 import { normalizeLabel } from '@/lib/utils'
 import { mockLLMCall } from '@/lib/mockLLM'
 import { PromptKey, resolvePrompt } from '@/lib/promptStore'
+import { RelevantNodeContext } from '@/lib/relevantNodeContext'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = 'gpt-5.4'
@@ -168,9 +169,20 @@ High-signal heuristics (the more an entity meets, the stronger the signal):
 - Structural: the entity organizes other entities (a group, a place, a recurring context).
 - Identity-shaping: the user describes this as part of who they are, what they do, who they love, where they live, or what they believe.
 
+Primary noun rule:
+- Node labels must be primary nouns, proper nouns, durable noun phrases, or concrete activities.
+- Never create nodes from adjectives, adverbs, comparatives, recency words, intensifiers, or other modifiers.
+- Bad modifier nodes: New, Newest, Recent, Latest, Current, First, Last, Next, Better, Best, Worse, More, Most, Less, Favorite.
+- Good: "my newest hobby is skateboarding" -> Skateboarding under Hobbies. Bad: Newest under Hobbies.
+- Hobbies children should be concrete activities, practices, art forms, sports, crafts, or instruments: Running, Skateboarding, Pottery, Guitar.
+- Relationships children should be names, roles, or groups: Tom, Dad, Partner, Family, Friends.
+- Work children should be jobs, companies, projects, teams, clients, roles, or named coworkers: Designer, Northbridge, Launch Project, Coworkers, Boss.
+- If no tangible noun exists, tag only the best tier-one domain.
+
 Never return:
 - Emotions (stress, sadness, anger, fear, joy, pride, peace, love, hope, grief, etc.).
 - Generic filler (life, feelings, thoughts, things, stuff, situation, conversation, struggles, issues).
+- Modifier-only labels such as newest, recent, current, better, best, first, next, favorite.
 - One-off mentions with no weight.
 - Historical, public, or symbolic figures referenced illustratively (Abraham, Job, Jesus, celebrities, book characters). They are not part of the user's personal graph.
 
@@ -221,6 +233,16 @@ async function getSystemPrompt() {
   )
 }
 
+async function getStreamingSystemPrompt() {
+  return [
+    await getSystemPrompt(),
+    'Streaming response mode:',
+    "Output only Mirror's conversational reply as plain text.",
+    'Do not output JSON.',
+    'Do not include entities or relationships.',
+  ].join('\n\n')
+}
+
 async function getTaggerPrompt() {
   return (
     (await getPersona()) +
@@ -268,10 +290,12 @@ export async function generateConversationTurn({
   userMessage,
   conversationMessages,
   graph,
+  relevantNodeContexts = [],
 }: {
   userMessage: string
   conversationMessages: Message[]
   graph: Graph
+  relevantNodeContexts?: RelevantNodeContext[]
 }): Promise<LLMResult> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
@@ -282,6 +306,7 @@ export async function generateConversationTurn({
     userMessage,
     conversationMessages,
     graph,
+    relevantNodeContexts,
     systemPrompt: await getSystemPrompt(),
   })
 
@@ -322,6 +347,93 @@ export async function generateConversationTurn({
 
   const parsed = JSON.parse(rawText) as LLMResult
   return sanitizeLLMResult(parsed)
+}
+
+export async function generateConversationTurnStream({
+  userMessage,
+  conversationMessages,
+  graph,
+  relevantNodeContexts = [],
+  onDelta,
+}: {
+  userMessage: string
+  conversationMessages: Message[]
+  graph: Graph
+  relevantNodeContexts?: RelevantNodeContext[]
+  onDelta: (delta: string) => void | Promise<void>
+}): Promise<LLMResult> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    const mock = mockLLMCall(userMessage)
+    for (const chunk of chunkText(mock.response)) {
+      await onDelta(chunk)
+      await new Promise((resolve) => setTimeout(resolve, 18))
+    }
+    return mock
+  }
+
+  const input = buildInputMessages({
+    userMessage,
+    conversationMessages,
+    graph,
+    relevantNodeContexts,
+    systemPrompt: await getStreamingSystemPrompt(),
+  })
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input,
+      stream: true,
+    }),
+  })
+
+  if (!response.ok || !response.body) {
+    const errorText = await response.text()
+    throw new Error(`OpenAI streaming response failed (${response.status}): ${errorText}`)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let responseText = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('data:')) continue
+      const data = trimmed.slice(5).trim()
+      if (!data || data === '[DONE]') continue
+
+      try {
+        const event = JSON.parse(data)
+        const delta = extractStreamDelta(event)
+        if (!delta) continue
+        responseText += delta
+        await onDelta(delta)
+      } catch {
+        // Ignore non-JSON keepalive / event framing.
+      }
+    }
+  }
+
+  return {
+    response: responseText.trim() || "Tell me a little more about what's most present for you right now.",
+    entities: [],
+    relationships: [],
+  }
 }
 
 export async function generateConversationTags({
@@ -718,11 +830,13 @@ function buildInputMessages({
   userMessage,
   conversationMessages,
   graph,
+  relevantNodeContexts,
   systemPrompt,
 }: {
   userMessage: string
   conversationMessages: Message[]
   graph: Graph
+  relevantNodeContexts?: RelevantNodeContext[]
   systemPrompt: string
 }): InputMessage[] {
   const history = conversationMessages.slice(-10).map<InputMessage>((message) => ({
@@ -745,6 +859,8 @@ function buildInputMessages({
           type: 'input_text',
           text: [
             systemPrompt,
+            'Relevant node memory:',
+            buildRelevantNodeMemory(relevantNodeContexts ?? []),
             'Relevant graph context:',
             graphContext,
           ].join('\n\n'),
@@ -757,6 +873,27 @@ function buildInputMessages({
       content: [{ type: 'input_text', text: userMessage }],
     },
   ]
+}
+
+function buildRelevantNodeMemory(contexts: RelevantNodeContext[]) {
+  const withContext = contexts.filter((context) => context.context?.trim())
+  if (withContext.length === 0) return 'No node memory selected.'
+
+  return withContext
+    .map((context) => {
+      return [
+        `- ${context.label} (${context.type}, ${context.reason})`,
+        indentBlock(context.context?.trim() ?? ''),
+      ].join('\n')
+    })
+    .join('\n')
+}
+
+function indentBlock(text: string) {
+  return text
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n')
 }
 
 function buildGraphContext(
@@ -832,6 +969,30 @@ function extractOutputText(payload: OpenAIResponse): string {
   return texts.join('\n').trim()
 }
 
+function extractStreamDelta(event: unknown): string {
+  if (!event || typeof event !== 'object') return ''
+  const record = event as Record<string, unknown>
+
+  if (typeof record.delta === 'string') return record.delta
+  if (typeof record.text === 'string' && record.type === 'response.output_text.delta') return record.text
+
+  const item = record.item
+  if (item && typeof item === 'object') {
+    const itemRecord = item as Record<string, unknown>
+    if (typeof itemRecord.delta === 'string') return itemRecord.delta
+    if (typeof itemRecord.text === 'string' && record.type === 'response.output_text.delta') {
+      return itemRecord.text
+    }
+  }
+
+  return ''
+}
+
+function chunkText(text: string) {
+  const chunks = text.match(/\S+\s*/g)
+  return chunks ?? [text]
+}
+
 function sanitizeLLMResult(result: LLMResult): LLMResult {
   const safeTypes = new Set<NodeType>(['user', 'person', 'role', 'domain', 'emotion'])
   const seenEntities = new Set<string>()
@@ -898,11 +1059,11 @@ function sanitizeTagResult(result: LLMResult, transcript = ''): LLMResult {
   const entities = sanitized.entities
     .filter((entity) => entity.type !== 'emotion')
     .map((entity) => normalizeTagEntity(entity, transcript))
-    .filter((entity) => !TAG_ENTITY_STOPWORDS.has(normalizeLabel(entity.name)))
+    .filter((entity) => !shouldRejectTagEntity(entity))
     .filter((entity) => normalizeLabel(entity.name) !== 'hobbies' || hasExplicitHobby)
     .filter((entity) => isSupportedByUserTranscript(entity, userTranscript))
   const enrichedEntities = enrichTagEntities(entities, transcript)
-    .filter((entity) => !TAG_ENTITY_STOPWORDS.has(normalizeLabel(entity.name)))
+    .filter((entity) => !shouldRejectTagEntity(entity))
     .filter((entity) => normalizeLabel(entity.name) !== 'hobbies' || hasExplicitHobby)
     .filter((entity) => isSupportedByUserTranscript(entity, userTranscript))
     .slice(0, 6)
@@ -1030,6 +1191,8 @@ function isSupportedByUserTranscript(
 ) {
   const normalized = normalizeLabel(entity.name)
   const normalizedUserTranscript = normalizeLabel(userTranscript)
+
+  if (shouldRejectTagEntity(entity)) return false
 
   if (entity.type === 'domain') {
     if (normalized === 'hobbies') return /\b(hobby|hobbies|craft|sport|recreation|for fun)\b/i.test(userTranscript)
@@ -1200,6 +1363,8 @@ function extractHobbyActivities(transcript: string): string[] {
 
   for (const line of userLines) {
     const patterns = [
+      /\b([a-z][a-z'-]{2,})\s+(?:is|has been|was|became)\s+(?:my\s+|a\s+|an\s+)?(?:newest|new|latest|current|favorite)?\s*(?:hobby|craft|sport|activity)\b/gi,
+      /\b(?:newest|new|latest|current|favorite)?\s*(?:hobby|craft|sport|activity)\s+(?:is|has been|was|became|:)\s+([a-z][a-z'-]{2,})\b/gi,
       /\b(?:new\s+)?([a-z][a-z'-]{2,})\s+(?:hobby|craft)\b/gi,
       /\b(?:hobby|craft)\s+(?:of\s+)?([a-z][a-z'-]{2,})\b/gi,
       /\b(?:i\s+)?(?:love|enjoy|like|miss|started|start|picked up)\s+([a-z][a-z'-]{2,})(?:\b|ing\b)/gi,
@@ -1220,6 +1385,12 @@ function addActivityCandidate(names: Set<string>, rawName: string | undefined) {
   const normalized = normalizeLabel(rawName)
   if (!normalized || ACTIVITY_STOPWORDS.has(normalized) || PERSON_NAME_STOPWORDS.has(normalized)) return
   names.add(displayName(normalized))
+}
+
+function shouldRejectTagEntity(entity: { name: string; type: NodeType }) {
+  const normalized = normalizeLabel(entity.name)
+  if (entity.type === 'domain') return !TAG_DOMAIN_LABELS.has(normalized)
+  return TAG_ENTITY_STOPWORDS.has(normalized) || MODIFIER_ONLY_NODE_LABELS.has(normalized)
 }
 
 function normalizeRelationshipType(value: string): string {
@@ -1285,7 +1456,27 @@ const ACTIVITY_STOPWORDS = new Set([
   'this',
   'that',
   'new',
+  'newest',
+  'recent',
+  'latest',
+  'current',
+  'first',
+  'last',
+  'next',
   'old',
+  'older',
+  'young',
+  'younger',
+  'best',
+  'better',
+  'worse',
+  'worst',
+  'more',
+  'most',
+  'less',
+  'least',
+  'favorite',
+  'favourite',
   'the',
   'and',
   'for',
@@ -1317,6 +1508,40 @@ const ACTIVITY_STOPWORDS = new Set([
   'gift',
   'gifts',
   'christmas',
+])
+
+const MODIFIER_ONLY_NODE_LABELS = new Set([
+  'new',
+  'newest',
+  'recent',
+  'latest',
+  'current',
+  'first',
+  'last',
+  'next',
+  'old',
+  'older',
+  'young',
+  'younger',
+  'best',
+  'better',
+  'worse',
+  'worst',
+  'more',
+  'most',
+  'less',
+  'least',
+  'favorite',
+  'favourite',
+])
+
+const TAG_DOMAIN_LABELS = new Set([
+  'self',
+  'health',
+  'work',
+  'relationships',
+  'hobbies',
+  'lifestyle',
 ])
 
 const TAG_ENTITY_STOPWORDS = new Set([
@@ -1369,6 +1594,9 @@ const TAG_ENTITY_STOPWORDS = new Set([
   'consulting',
   'product',
   'hard',
+  'easy',
+  'big',
+  'small',
   'thoughts',
   'feelings',
   'conversation',

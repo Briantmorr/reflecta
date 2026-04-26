@@ -308,3 +308,41 @@ Node context generation should:
 - `--force` removes prior imported conversations and re-tags
 - imports use same conversation tagger path plus import transcript trimming and author hint
 - local dev and deploys both read the configured `DATABASE_URL`
+
+## Dev DB Snapshot
+
+Purpose:
+
+- preserve a known-good development state with conversations, graph structure, tags, and node context
+- allow returning to an empty app without losing that curated state
+- make seeded node-memory testing repeatable
+
+Current fixture:
+
+- path: `prisma/seed-data/dev-snapshot.json`
+- includes:
+  conversations, messages, graph nodes, graph edges, conversation-node tags, message-node refs, node context version history
+- excludes:
+  prompt versions, active prompt config, auth/session/account rows
+
+Commands:
+
+- save current configured DB app data into the fixture:
+  `npm run db:snapshot:dev`
+- restore the fixture into the configured DB:
+  `npm run db:load:dev-snapshot`
+- clear app data back to empty:
+  `npm run db:clear:app-data`
+
+Restore behavior:
+
+- deletes existing app data first
+- recreates rows with preserved IDs
+- preserves node links, conversation tags, node context history, timestamps, and conversation history
+- leaves prompt tables untouched
+
+Safety:
+
+- all commands use `DATABASE_URL`
+- check `.env` / `.env.local` before running against Vercel or any shared database
+- use `db:clear:app-data` only when intentionally resetting conversations, nodes, links, and node context

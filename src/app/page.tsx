@@ -18,8 +18,50 @@ const NODE_STARTER_QUESTIONS: Record<string, string> = {
   lifestyle: "What rhythm or pattern in your daily life has been standing out lately?",
 }
 
+type AssistantDraft = {
+  content: string
+  status: 'reading_context' | 'context_nodes' | 'streaming'
+  nodeLabels: string[]
+}
+
+type MessageStreamEvent =
+  | { type: 'status'; status: AssistantDraft['status'] }
+  | { type: 'context_nodes'; nodes: Array<{ nodeId: string; label: string; reason: string }> }
+  | { type: 'delta'; text: string }
+  | { type: 'final'; userMessage: Message; assistantMessage: Message; graph: Graph; touchedNodeIds?: string[] }
+  | { type: 'error'; error: string }
+
 function buildNodeStarterQuestion(nodeLabel: string) {
   return NODE_STARTER_QUESTIONS[nodeLabel.toLowerCase()] ?? `What's been most present around ${nodeLabel.toLowerCase()} lately?`
+}
+
+async function readMessageStream(
+  response: Response,
+  { onEvent }: { onEvent: (event: MessageStreamEvent) => Promise<void> | void }
+) {
+  if (!response.body) throw new Error('Message stream missing response body')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      if (!line.trim()) continue
+      await onEvent(JSON.parse(line) as MessageStreamEvent)
+    }
+  }
+
+  if (buffer.trim()) {
+    await onEvent(JSON.parse(buffer) as MessageStreamEvent)
+  }
 }
 
 export default function Home() {
@@ -37,6 +79,7 @@ export default function Home() {
   const [nodeContext, setNodeContext] = useState<NodeContext | null>(null)
   const [isGeneratingContext, setIsGeneratingContext] = useState(false)
   const [isSavingContext, setIsSavingContext] = useState(false)
+  const [assistantDraft, setAssistantDraft] = useState<AssistantDraft | null>(null)
   const didAutoOpenConversation = useRef(false)
 
   // ─── Fetchers ──────────────────────────────────────────
@@ -118,13 +161,19 @@ export default function Home() {
 
   const handleDelete = useCallback(
     async (id: string) => {
-      await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(data?.error ?? 'Failed to delete conversation')
+      }
+
+      setConversations((previous) => previous.filter((conversation) => conversation.id !== id))
       if (activeConversation?.id === id) {
         setActiveConversation(null)
         setStarterPrompt(DEFAULT_STARTER_QUESTION)
+        setAssistantDraft(null)
       }
-      await fetchConversations()
-      await fetchGraph()
+      await Promise.all([fetchConversations(), fetchGraph()])
     },
     [activeConversation?.id, fetchConversations, fetchGraph]
   )
@@ -157,31 +206,80 @@ export default function Home() {
         setActiveConversation((prev) =>
           prev ? { ...prev, messages: [...(prev.messages ?? []), optimisticMessage] } : prev
         )
+        setAssistantDraft({ content: 'Reading context...', status: 'reading_context', nodeLabels: [] })
 
         const res = await fetch(`/api/conversations/${conversationForSend.id}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({
+            content,
+            selectedNodeIds: nodeView?.nodes.map((node) => node.nodeId) ?? [],
+          }),
         })
         if (!res.ok) throw new Error('Failed to send message')
-        const data = await res.json()
         const optimisticMessageId = optimisticUserMsg.id
 
-        // Replace optimistic message with the real pair
-        setActiveConversation((prev) => {
-          if (!prev) return prev
-          const msgs = (prev.messages ?? []).filter((m) => m.id !== optimisticMessageId)
-          return {
-            ...prev,
-            messages: [...msgs, data.userMessage, data.assistantMessage],
-          }
+        let finalReceived = false
+        await readMessageStream(res, {
+          onEvent: async (event) => {
+            if (event.type === 'status') {
+              setAssistantDraft((current) => ({
+                content: current?.content || 'Reading context…',
+                status: event.status,
+                nodeLabels: current?.nodeLabels ?? [],
+              }))
+              return
+            }
+
+            if (event.type === 'context_nodes') {
+              const labels = event.nodes.map((node) => node.label)
+              setAssistantDraft({
+                content: labels.length > 0 ? `Looking into ${labels.join(', ')}...` : 'Reading context...',
+                status: 'context_nodes',
+                nodeLabels: labels,
+              })
+              return
+            }
+
+            if (event.type === 'delta') {
+              setAssistantDraft((current) => ({
+                content:
+                  current?.status === 'streaming'
+                    ? `${current.content}${event.text}`
+                    : event.text,
+                status: 'streaming',
+                nodeLabels: current?.nodeLabels ?? [],
+              }))
+              return
+            }
+
+            if (event.type === 'final') {
+              finalReceived = true
+              setActiveConversation((prev) => {
+                if (!prev) return prev
+                const msgs = (prev.messages ?? []).filter((m) => m.id !== optimisticMessageId)
+                return {
+                  ...prev,
+                  messages: [...msgs, event.userMessage, event.assistantMessage],
+                }
+              })
+              setAssistantDraft(null)
+              setGraph(event.graph)
+              setHighlightedNodeIds(event.touchedNodeIds ?? [])
+              await fetchConversations()
+              return
+            }
+
+            if (event.type === 'error') {
+              throw new Error(event.error)
+            }
+          },
         })
 
-        setGraph(data.graph)
-        setHighlightedNodeIds(data.touchedNodeIds ?? [])
-        await fetchConversations()
+        if (!finalReceived) throw new Error('Message stream ended before final event')
       } catch (err) {
         console.error(err)
+        setAssistantDraft(null)
         const optimisticMessageId = optimisticUserMsg?.id
         // Roll back optimistic
         setActiveConversation((prev) =>
@@ -198,7 +296,7 @@ export default function Home() {
         setIsSending(false)
       }
     },
-    [activeConversation, createConversationRecord, isSending, fetchConversations]
+    [activeConversation, createConversationRecord, isSending, fetchConversations, nodeView]
   )
 
   const handleUpdateTags = useCallback(async () => {
@@ -341,6 +439,89 @@ export default function Home() {
     [contextTargetNodeId, fetchGraph, isSavingContext]
   )
 
+  const handleRenameNode = useCallback(
+    async (nodeId: string, label: string) => {
+      const res = await fetch(`/api/nodes/${nodeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label }),
+      })
+      const data = (await res.json().catch(() => null)) as { label?: string; error?: string } | null
+      if (!res.ok) {
+        throw new Error(data?.error ?? 'Failed to rename node')
+      }
+      const nextLabel = data?.label ?? label
+
+      setNodeView((previous) => {
+        if (!previous) return previous
+        return {
+          nodes: previous.nodes.map((node) =>
+            node.nodeId === nodeId ? { ...node, label: nextLabel } : node
+          ),
+        }
+      })
+      setActiveConversation((previous) => {
+        if (!previous?.tags) return previous
+        return {
+          ...previous,
+          tags: previous.tags.map((tag) =>
+            tag.nodeId === nodeId ? { ...tag, label: nextLabel } : tag
+          ),
+        }
+      })
+
+      await Promise.all([fetchGraph(), fetchConversations()])
+    },
+    [fetchConversations, fetchGraph]
+  )
+
+  const handleDeleteNode = useCallback(
+    async (nodeId: string) => {
+      const res = await fetch(`/api/nodes/${nodeId}`, { method: 'DELETE' })
+      const data = (await res.json().catch(() => null)) as { error?: string } | null
+      if (!res.ok) {
+        throw new Error(data?.error ?? 'Failed to delete node')
+      }
+
+      setNodeView(null)
+      setNodeInsights(null)
+      setNodeContext(null)
+      setHighlightedNodeIds([])
+      setActiveConversation((previous) => {
+        if (!previous?.tags) return previous
+        return {
+          ...previous,
+          tags: previous.tags.filter((tag) => tag.nodeId !== nodeId),
+        }
+      })
+
+      await Promise.all([fetchGraph(), fetchConversations()])
+    },
+    [fetchConversations, fetchGraph]
+  )
+
+  const handleResetAppData = useCallback(async () => {
+    const res = await fetch('/api/dev/reset', { method: 'POST' })
+    const data = (await res.json().catch(() => null)) as { graph?: Graph; error?: string } | null
+    if (!res.ok) {
+      throw new Error(data?.error ?? 'Failed to reset app data')
+    }
+
+    setConversations([])
+    setActiveConversation(null)
+    setStarterPrompt(DEFAULT_STARTER_QUESTION)
+    setNodeView(null)
+    setNodeInsights(null)
+    setNodeContext(null)
+    setHighlightedNodeIds([])
+    setAssistantDraft(null)
+    if (data?.graph) {
+      setGraph(data.graph)
+    } else {
+      await fetchGraph()
+    }
+  }, [fetchGraph])
+
   const handleSelectNode = useCallback(
     (nodeId: string | null, options?: { additive?: boolean }) => {
       if (!nodeId) {
@@ -460,10 +641,12 @@ export default function Home() {
         starterPrompt={starterPrompt}
         onCreateConversation={handleCreate}
         onSendMessage={handleSendMessage}
+        onDeleteConversation={handleDelete}
         isSending={isSending}
         onUpdateTags={handleUpdateTags}
         onRemoveTag={handleRemoveTag}
         isUpdatingTags={isUpdatingTags}
+        assistantDraft={assistantDraft}
         layout="side"
         side="left"
       />
@@ -481,6 +664,9 @@ export default function Home() {
         onDelete={handleDelete}
         nodeView={nodeView}
         onClearNodeView={() => handleSelectNode(null)}
+        onRenameNode={handleRenameNode}
+        onDeleteNode={handleDeleteNode}
+        onResetAppData={handleResetAppData}
         nodeInsights={nodeInsights}
         onGenerateInsights={handleGenerateInsights}
         isGeneratingInsights={isGeneratingInsights}

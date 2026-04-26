@@ -25,6 +25,9 @@ interface ConversationListProps {
   onDelete: (id: string) => void
   nodeView: NodeView | null
   onClearNodeView: () => void
+  onRenameNode: (nodeId: string, label: string) => Promise<void> | void
+  onDeleteNode: (nodeId: string) => Promise<void> | void
+  onResetAppData: () => Promise<void> | void
   nodeInsights: NodeInsights | null
   onGenerateInsights: () => Promise<void> | void
   isGeneratingInsights: boolean
@@ -43,6 +46,9 @@ export default function ConversationList({
   onDelete,
   nodeView,
   onClearNodeView,
+  onRenameNode,
+  onDeleteNode,
+  onResetAppData,
   nodeInsights,
   onGenerateInsights,
   isGeneratingInsights,
@@ -58,6 +64,13 @@ export default function ConversationList({
   const [nodeConversationsOpen, setNodeConversationsOpen] = useState(false)
   const [isEditingContext, setIsEditingContext] = useState(false)
   const [contextDraft, setContextDraft] = useState('')
+  const [isEditingNode, setIsEditingNode] = useState(false)
+  const [nodeNameDraft, setNodeNameDraft] = useState('')
+  const [nodeMutationError, setNodeMutationError] = useState<string | null>(null)
+  const [isMutatingNode, setIsMutatingNode] = useState(false)
+  const [confirmNodeDelete, setConfirmNodeDelete] = useState(false)
+  const [confirmResetAll, setConfirmResetAll] = useState(false)
+  const [isResettingAll, setIsResettingAll] = useState(false)
   const { openSettings } = useSettings()
   const selectedNodes = nodeView?.nodes ?? []
   const selectedNonUserNodes = selectedNodes.filter((node) => node.type !== 'user')
@@ -67,21 +80,93 @@ export default function ConversationList({
   const isAllConversationsView = selectedNonUserNodes.length === 0
   const singleSelectedNode = selectedNodes.length === 1 ? selectedNodes[0] : null
   const isUserNodeSelected = singleSelectedNode?.type === 'user'
-  const contextSectionLabel = isUserNodeSelected ? 'User profile' : 'Node context'
+  const canMutateSelectedNode =
+    !!singleSelectedNode && singleSelectedNode.type !== 'user' && singleSelectedNode.type !== 'domain'
+  const contextSectionLabel = isUserNodeSelected ? 'User profile' : 'What I remember'
 
   useEffect(() => {
     setIsEditingContext(false)
     setContextDraft(nodeContext?.text ?? '')
   }, [nodeContext?.text, singleSelectedNode?.nodeId])
 
+  useEffect(() => {
+    setIsEditingNode(false)
+    setNodeNameDraft(singleSelectedNode?.label ?? '')
+    setNodeMutationError(null)
+    setConfirmNodeDelete(false)
+    setConfirmResetAll(false)
+  }, [singleSelectedNode?.nodeId, singleSelectedNode?.label])
+
   const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     if (confirmDeleteId === id) {
-      onDelete(id)
+      void Promise.resolve(onDelete(id)).catch((err) => {
+        console.error(err)
+      })
       setConfirmDeleteId(null)
     } else {
       setConfirmDeleteId(id)
       setTimeout(() => setConfirmDeleteId(null), 3000)
+    }
+  }
+
+  const handleSaveNodeName = async () => {
+    if (!singleSelectedNode || isMutatingNode) return
+    const trimmed = nodeNameDraft.trim()
+    if (!trimmed) {
+      setNodeMutationError('Node name is required.')
+      return
+    }
+
+    setIsMutatingNode(true)
+    setNodeMutationError(null)
+    try {
+      await onRenameNode(singleSelectedNode.nodeId, trimmed)
+      setIsEditingNode(false)
+    } catch (err) {
+      setNodeMutationError(err instanceof Error ? err.message : 'Failed to rename node.')
+    } finally {
+      setIsMutatingNode(false)
+    }
+  }
+
+  const handleDeleteNode = async () => {
+    if (!singleSelectedNode || isMutatingNode) return
+    if (!confirmNodeDelete) {
+      setConfirmNodeDelete(true)
+      setTimeout(() => setConfirmNodeDelete(false), 3000)
+      return
+    }
+
+    setIsMutatingNode(true)
+    setNodeMutationError(null)
+    try {
+      await onDeleteNode(singleSelectedNode.nodeId)
+      setConfirmNodeDelete(false)
+    } catch (err) {
+      setNodeMutationError(err instanceof Error ? err.message : 'Failed to delete node.')
+    } finally {
+      setIsMutatingNode(false)
+    }
+  }
+
+  const handleResetAll = async () => {
+    if (isResettingAll) return
+    if (!confirmResetAll) {
+      setConfirmResetAll(true)
+      setTimeout(() => setConfirmResetAll(false), 5000)
+      return
+    }
+
+    setIsResettingAll(true)
+    setNodeMutationError(null)
+    try {
+      await onResetAppData()
+      setConfirmResetAll(false)
+    } catch (err) {
+      setNodeMutationError(err instanceof Error ? err.message : 'Failed to reset app data.')
+    } finally {
+      setIsResettingAll(false)
     }
   }
 
@@ -117,8 +202,8 @@ export default function ConversationList({
               >
                 Workspace
               </div>
-              <div className="text-sm font-semibold" style={{ color: 'var(--mirror-text)' }}>
-                Node Summary
+              <div className="truncate text-sm font-semibold" style={{ color: 'var(--mirror-text)' }}>
+                {nodeView ? selectedLabel : 'Workspace'}
               </div>
             </div>
           </div>
@@ -159,31 +244,108 @@ export default function ConversationList({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div
-                      className="text-[10px] font-semibold uppercase tracking-[0.18em]"
-                      style={{ color: nodeView ? 'var(--mirror-accent-hover)' : 'var(--mirror-secondary)' }}
-                    >
-                      Selected node
-                    </div>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span
-                        className="inline-flex max-w-full items-center rounded-full px-3 py-1.5 text-[12px] font-semibold"
-                        style={{
-                          background: nodeView
-                            ? 'color-mix(in srgb, var(--mirror-accent) 18%, transparent)'
-                            : 'var(--mirror-accent-subtle)',
-                          color: 'var(--mirror-accent-hover)',
-                          boxShadow: nodeView
-                            ? '0 8px 20px var(--mirror-accent-subtle), inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 18%, transparent)'
-                            : 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
-                        }}
-                      >
-                        {selectedLabel}
-                      </span>
+                      {isEditingNode && singleSelectedNode ? (
+                        <div className="flex w-full items-center gap-1.5">
+                          <input
+                            value={nodeNameDraft}
+                            onChange={(event) => setNodeNameDraft(event.target.value)}
+                            className="min-w-0 flex-1 rounded-full px-3 py-1.5 text-[12px] font-semibold outline-none"
+                            style={{
+                              background: 'var(--mirror-elevated)',
+                              color: 'var(--mirror-text)',
+                              boxShadow: 'inset 0 0 0 1px var(--mirror-border)',
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveNodeName}
+                            disabled={isMutatingNode}
+                            className="mirror-focus-ring flex h-7 w-7 items-center justify-center rounded-full"
+                            style={{ background: 'var(--mirror-accent)', color: 'var(--mirror-accent-contrast)' }}
+                            aria-label="Save node name"
+                          >
+                            {isMutatingNode ? <Loader2 size={12} className="animate-spin" /> : <Check size={13} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditingNode(false)
+                              setNodeMutationError(null)
+                              setNodeNameDraft(singleSelectedNode.label)
+                            }}
+                            className="mirror-focus-ring flex h-7 w-7 items-center justify-center rounded-full"
+                            style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
+                            aria-label="Cancel node rename"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className="inline-flex max-w-full items-center rounded-full px-3 py-1.5 text-[12px] font-semibold"
+                          style={{
+                            background: nodeView
+                              ? 'color-mix(in srgb, var(--mirror-accent) 18%, transparent)'
+                              : 'var(--mirror-accent-subtle)',
+                            color: 'var(--mirror-accent-hover)',
+                            boxShadow: nodeView
+                              ? '0 8px 20px var(--mirror-accent-subtle), inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 18%, transparent)'
+                              : 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
+                          }}
+                        >
+                          {selectedLabel}
+                        </span>
+                      )}
+                      {canMutateSelectedNode && !isEditingNode && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNodeNameDraft(singleSelectedNode.label)
+                              setIsEditingNode(true)
+                              setNodeMutationError(null)
+                            }}
+                            className="mirror-focus-ring flex h-7 w-7 items-center justify-center rounded-full"
+                            style={{ background: 'var(--mirror-elevated)', color: 'var(--mirror-secondary)' }}
+                            aria-label="Rename node"
+                            title="Rename node"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDeleteNode}
+                            disabled={isMutatingNode}
+                            className="mirror-focus-ring flex h-7 w-7 items-center justify-center rounded-full"
+                            style={{
+                              background: confirmNodeDelete
+                                ? 'color-mix(in srgb, #c2410c 16%, var(--mirror-elevated))'
+                                : 'var(--mirror-elevated)',
+                              color: confirmNodeDelete ? '#c2410c' : 'var(--mirror-secondary)',
+                            }}
+                            aria-label={confirmNodeDelete ? 'Confirm delete node' : 'Delete node'}
+                            title={confirmNodeDelete ? 'Click again to delete node' : 'Delete node'}
+                          >
+                            {isMutatingNode ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          </button>
+                        </>
+                      )}
                       <span className="text-xs" style={{ color: 'var(--mirror-muted)' }}>
                         {isAllConversationsView ? 'All conversations' : 'Matching notes only'}
                       </span>
                     </div>
+                    {nodeMutationError && (
+                      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: '#c2410c' }}>
+                        {nodeMutationError}
+                      </p>
+                    )}
+                    {confirmNodeDelete && (
+                      <p className="mt-2 text-[11px] leading-relaxed" style={{ color: 'var(--mirror-muted)' }}>
+                        Are you sure? This will permanently delete the node from your map and untag its conversations. Click delete again to confirm.
+                      </p>
+                    )}
                   </div>
                   {nodeView && (
                     <button
@@ -214,7 +376,7 @@ export default function ConversationList({
                   }}
                 >
                   <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
-                    Related conversations
+                    Entries tagged
                   </span>
                   <span className="flex items-center gap-1.5 text-[11px]">
                     {conversations.length}
@@ -321,7 +483,7 @@ export default function ConversationList({
                       className="text-[10px] font-semibold uppercase tracking-[0.18em]"
                       style={{ color: 'var(--mirror-accent-hover)' }}
                     >
-                      Node insights
+                      Entry insights
                     </div>
                     <button
                       type="button"
@@ -413,6 +575,52 @@ export default function ConversationList({
                       {conversations.length === 0
                         ? `No conversations tagged with ${selectedLabel} yet.`
                         : `Surface patterns and connections${selectedNonUserNodes.length > 1 ? ' between these nodes' : ''} across ${conversations.length} ${conversations.length === 1 ? 'conversation' : 'conversations'}.`}
+                    </p>
+                  )}
+                </section>
+              )}
+
+              {isUserNodeSelected && (
+                <section
+                  className="rounded-[24px] px-3 py-3"
+                  style={{
+                    background: 'color-mix(in srgb, #c2410c 5%, var(--mirror-surface))',
+                    boxShadow: '0 10px 24px rgba(53, 42, 27, 0.04), inset 0 0 0 1px color-mix(in srgb, #c2410c 14%, transparent)',
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div
+                        className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+                        style={{ color: '#c2410c' }}
+                      >
+                        Dev reset
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--mirror-secondary)' }}>
+                        Clear this profile for a new user.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleResetAll}
+                      disabled={isResettingAll}
+                      className="mirror-focus-ring flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                      style={{
+                        background: confirmResetAll
+                          ? 'color-mix(in srgb, #c2410c 18%, var(--mirror-elevated))'
+                          : 'var(--mirror-elevated)',
+                        color: '#c2410c',
+                        boxShadow: 'inset 0 0 0 1px color-mix(in srgb, #c2410c 18%, transparent)',
+                        cursor: isResettingAll ? 'progress' : 'pointer',
+                      }}
+                    >
+                      {isResettingAll ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                      {confirmResetAll ? 'Confirm reset' : 'Delete all'}
+                    </button>
+                  </div>
+                  {confirmResetAll && (
+                    <p className="mt-2 text-[11px] leading-relaxed" style={{ color: '#c2410c' }}>
+                      Are you sure? This permanently deletes all conversations, nodes, node context, and memory for this profile. Click confirm reset to continue.
                     </p>
                   )}
                 </section>

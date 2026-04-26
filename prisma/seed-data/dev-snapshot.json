@@ -1,0 +1,1002 @@
+{
+  "version": 1,
+  "exportedAt": "2026-04-26T02:15:21.370Z",
+  "tables": {
+    "users": [],
+    "conversations": [
+      {
+        "id": "cmobji2nc0001mgrvyoq4gwe1",
+        "title": "Lately I've been thinking a lot about my family",
+        "createdAt": "2026-04-18T13:51:10.053Z",
+        "updatedAt": "2026-04-18T13:53:25.053Z",
+        "sourceRef": null,
+        "sourceType": null,
+        "sourceName": null,
+        "importedAt": null,
+        "userId": null
+      },
+      {
+        "id": "cmobji6tg000pmgrvmrjqwv0v",
+        "title": "Work has been a lot",
+        "createdAt": "2026-04-20T13:51:15.459Z",
+        "updatedAt": "2026-04-20T13:53:30.459Z",
+        "sourceRef": null,
+        "sourceType": null,
+        "sourceName": null,
+        "importedAt": null,
+        "userId": null
+      },
+      {
+        "id": "cmobji9my0015mgrvlva6gxvz",
+        "title": "I had dinner with my partner last night and it was…",
+        "createdAt": "2026-04-22T13:51:19.114Z",
+        "updatedAt": "2026-04-22T13:53:34.114Z",
+        "sourceRef": null,
+        "sourceType": null,
+        "sourceName": null,
+        "importedAt": null,
+        "userId": null
+      },
+      {
+        "id": "cmobjicdw001jmgrvt7lud9zv",
+        "title": "Been trying to get back into running",
+        "createdAt": "2026-04-23T11:51:22.675Z",
+        "updatedAt": "2026-04-24T00:49:27.376Z",
+        "sourceRef": null,
+        "sourceType": null,
+        "sourceName": null,
+        "importedAt": null,
+        "userId": null
+      },
+      {
+        "id": "cmof0yoxy000004kvv5gpz5c8",
+        "title": "I am at a coffee shop now",
+        "createdAt": "2026-04-26T00:23:17.446Z",
+        "updatedAt": "2026-04-26T00:40:42.986Z",
+        "sourceRef": null,
+        "sourceType": null,
+        "sourceName": null,
+        "importedAt": null,
+        "userId": null
+      },
+      {
+        "id": "cmof1m8d1000h04kvnx9i0c6g",
+        "title": "I am really focused on health",
+        "createdAt": "2026-04-26T00:41:35.701Z",
+        "updatedAt": "2026-04-26T00:51:46.768Z",
+        "sourceRef": null,
+        "sourceType": null,
+        "sourceName": null,
+        "importedAt": null,
+        "userId": null
+      }
+    ],
+    "messages": [
+      {
+        "id": "cmobji2qb0002mgrvrnp34gau",
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "role": "user",
+        "content": "Lately I've been thinking a lot about my family. My dad has been on my mind.",
+        "createdAt": "2026-04-18T13:51:40.053Z"
+      },
+      {
+        "id": "cmobji2t70003mgrv4i0oxwum",
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "role": "assistant",
+        "content": "Tell me more about your family. Who are you closest to, and why?",
+        "createdAt": "2026-04-18T13:51:55.053Z"
+      },
+      {
+        "id": "cmobji2w40004mgrvewid7hu2",
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "role": "user",
+        "content": "My mom has been stressed too, and I'm worried about both of them. My brother lives far away so I'm the one checking in.",
+        "createdAt": "2026-04-18T13:52:25.053Z"
+      },
+      {
+        "id": "cmobji2z10005mgrvis923g9n",
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "role": "assistant",
+        "content": "What does your relationship with them usually look like day to day?",
+        "createdAt": "2026-04-18T13:52:40.053Z"
+      },
+      {
+        "id": "cmobji31z0006mgrvewn16fhk",
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "role": "user",
+        "content": "When I talk to my dad I feel both love and frustration. He's proud of me but we never really dig into the hard stuff.",
+        "createdAt": "2026-04-18T13:53:10.053Z"
+      },
+      {
+        "id": "cmobji3540007mgrvckbkf0mr",
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "role": "assistant",
+        "content": "When you think about family, what feelings come up first?",
+        "createdAt": "2026-04-18T13:53:25.053Z"
+      },
+      {
+        "id": "cmobji6wb000qmgrvyukwdd4p",
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "role": "user",
+        "content": "Work has been a lot. My boss dropped a big project on me with no warning and now I'm overwhelmed.",
+        "createdAt": "2026-04-20T13:51:45.459Z"
+      },
+      {
+        "id": "cmobji6zh000rmgrvituj6svf",
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "role": "assistant",
+        "content": "How do you feel walking into work most mornings?",
+        "createdAt": "2026-04-20T13:52:00.459Z"
+      },
+      {
+        "id": "cmobji72l000smgrv3s5qcc50",
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "role": "user",
+        "content": "My coworker Sarah has been helpful, but I can tell she's stressed too. The whole team feels anxious.",
+        "createdAt": "2026-04-20T13:52:30.459Z"
+      },
+      {
+        "id": "cmobji75p000tmgrv72ydmb67",
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "role": "assistant",
+        "content": "How do you feel walking into work most mornings?",
+        "createdAt": "2026-04-20T13:52:45.459Z"
+      },
+      {
+        "id": "cmobji78j000umgrvjnoim6l3",
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "role": "user",
+        "content": "I love what I do most days, but this week I feel drained. I keep thinking about quitting.",
+        "createdAt": "2026-04-20T13:53:15.459Z"
+      },
+      {
+        "id": "cmobji7bi000vmgrv822ifu72",
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "role": "assistant",
+        "content": "When was the last time you felt this strongly before?",
+        "createdAt": "2026-04-20T13:53:30.459Z"
+      },
+      {
+        "id": "cmobji9q10016mgrv8tqka4bb",
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "role": "user",
+        "content": "I had dinner with my partner last night and it was the calmest I've felt in weeks. Grateful for them.",
+        "createdAt": "2026-04-22T13:51:49.114Z"
+      },
+      {
+        "id": "cmobji9t50017mgrv9f2j8h00",
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "role": "assistant",
+        "content": "What would it mean to hold onto this feeling longer?",
+        "createdAt": "2026-04-22T13:52:04.114Z"
+      },
+      {
+        "id": "cmobji9wa0018mgrvfjbl16t6",
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "role": "user",
+        "content": "We talked about our future and what we both want. I feel so much love when we have those conversations.",
+        "createdAt": "2026-04-22T13:52:34.114Z"
+      },
+      {
+        "id": "cmobji9zf0019mgrvxk4tzrw6",
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "role": "assistant",
+        "content": "What would it mean to hold onto this feeling longer?",
+        "createdAt": "2026-04-22T13:52:49.114Z"
+      },
+      {
+        "id": "cmobjia2c001amgrvjesbvekq",
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "role": "user",
+        "content": "A close friend is going through a hard time and I'm trying to be there for them without losing myself.",
+        "createdAt": "2026-04-22T13:53:19.114Z"
+      },
+      {
+        "id": "cmobjia5d001bmgrva3ovycs3",
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "role": "assistant",
+        "content": "Are there friendships you wish were deeper?",
+        "createdAt": "2026-04-22T13:53:34.114Z"
+      },
+      {
+        "id": "cmobjicgt001kmgrv2m1l77ui",
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "role": "user",
+        "content": "Been trying to get back into running. My health has been on my mind — I know I need to take better care of myself.",
+        "createdAt": "2026-04-23T11:51:52.675Z"
+      },
+      {
+        "id": "cmobjicjz001lmgrvaoigu06y",
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "role": "assistant",
+        "content": "How has your body been feeling lately?",
+        "createdAt": "2026-04-23T11:52:07.675Z"
+      },
+      {
+        "id": "cmobjicmq001mmgrvfyocrsh8",
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "role": "user",
+        "content": "I feel proud when I actually go for the run, but most days I just don't. Then I feel frustrated with myself.",
+        "createdAt": "2026-04-23T11:52:37.675Z"
+      },
+      {
+        "id": "cmobjicq0001nmgrvet62vnpk",
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "role": "assistant",
+        "content": "What would it mean to hold onto this feeling longer?",
+        "createdAt": "2026-04-23T11:52:52.675Z"
+      },
+      {
+        "id": "cmoc70k4s000004jy4rkwdqpd",
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "role": "user",
+        "content": "maybe setting a running routine would help?",
+        "createdAt": "2026-04-24T00:49:23.692Z"
+      },
+      {
+        "id": "cmoc70myt000104jyy2ztrtc9",
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "role": "assistant",
+        "content": "You’re circling a real tension: you know structure might help, but right now it’s more idea than habit. When you picture a routine that might actually stick, what part of the day feels most honest for it?",
+        "createdAt": "2026-04-24T00:49:27.366Z"
+      },
+      {
+        "id": "cmof0yp9x000104kvy2ch6lkc",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "user",
+        "content": "I am at a coffee shop now",
+        "createdAt": "2026-04-26T00:23:17.877Z"
+      },
+      {
+        "id": "cmof0yt5t000204kv2eqxqkmc",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "assistant",
+        "content": "You're in a small in-between place right now, not fully at home or at work. What usually brings you to a coffee shop like this — focus, escape, habit, or something else?",
+        "createdAt": "2026-04-26T00:23:22.913Z"
+      },
+      {
+        "id": "cmof10fv8000004juq6zs3tog",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "user",
+        "content": "I'm talking to my brother about what we are building",
+        "createdAt": "2026-04-26T00:24:38.996Z"
+      },
+      {
+        "id": "cmof10i4t000104ju0tng9i8j",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "assistant",
+        "content": "You’re not just passing time there — this sounds like a real conversation about something shared with your brother. Family is already a meaningful part of your map, and your brother now seems tied to building something with you; what are the two of you trying to build?",
+        "createdAt": "2026-04-26T00:24:41.933Z"
+      },
+      {
+        "id": "cmof13ez0000404kv9n3ja955",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "user",
+        "content": "can you create a node that is titled Writing",
+        "createdAt": "2026-04-26T00:26:57.804Z"
+      },
+      {
+        "id": "cmof13h59000504kvc1pdb28v",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "assistant",
+        "content": "Yes — Writing belongs on the map if it names something real in your life. What kind of place does writing have for you right now: work, craft, outlet, or something else?",
+        "createdAt": "2026-04-26T00:27:00.621Z"
+      },
+      {
+        "id": "cmof13pzc000204juf9njg2ro",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "user",
+        "content": "Writing is my hobby",
+        "createdAt": "2026-04-26T00:27:12.072Z"
+      },
+      {
+        "id": "cmof13snm000304ju8m12jzz7",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "assistant",
+        "content": "Writing has a clear place in your life — not as work, but as something you do for its own sake. What does writing give you that the rest of your life doesn’t?",
+        "createdAt": "2026-04-26T00:27:15.538Z"
+      },
+      {
+        "id": "cmof14pbp000404juwy4feupo",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "user",
+        "content": "I love writing, can you store that in your mind",
+        "createdAt": "2026-04-26T00:27:57.877Z"
+      },
+      {
+        "id": "cmof14rpd000504juuh3njam4",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "assistant",
+        "content": "That lands clearly: writing isn’t just a hobby for you, it’s something you love. We’ve already placed Writing in your life, and now it carries more weight; what do you love most about it when you’re in it?",
+        "createdAt": "2026-04-26T00:28:00.961Z"
+      },
+      {
+        "id": "cmof16a8l000604kvsxxm6ao1",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "user",
+        "content": "Writing is something I do constantly, its so good",
+        "createdAt": "2026-04-26T00:29:11.637Z"
+      },
+      {
+        "id": "cmof16c0m000704kvj6c7olld",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "assistant",
+        "content": "Writing sounds less like an occasional hobby and more like a steady thread in your days. You’ve named both the habit and the love in it now; when do you notice yourself reaching for writing most often?",
+        "createdAt": "2026-04-26T00:29:13.942Z"
+      },
+      {
+        "id": "cmof1l103000f04kv5ceirdmr",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "user",
+        "content": "I am trying to build out my career around writings..",
+        "createdAt": "2026-04-26T00:40:39.507Z"
+      },
+      {
+        "id": "cmof1l3of000g04kvf9pqqhxv",
+        "conversationId": "cmof0yoxy000004kvv5gpz5c8",
+        "role": "assistant",
+        "content": "Writing is starting to shift from something you love into something you’re trying to organize your work around. That adds a real tension with Work already on your map; what would it mean, concretely, for writing to become your career?",
+        "createdAt": "2026-04-26T00:40:42.975Z"
+      },
+      {
+        "id": "cmof1m8l2000i04kvtugnzyix",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "user",
+        "content": "I am really focused on health",
+        "createdAt": "2026-04-26T00:41:35.990Z"
+      },
+      {
+        "id": "cmof1maxu000j04kvtqfyv4bb",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "assistant",
+        "content": "Health is taking up real attention right now, not just sitting in the background. You’ve mentioned it before as one of the main domains in your life; what in health feels most active at the moment — your body, your habits, or your worry about it?",
+        "createdAt": "2026-04-26T00:41:39.042Z"
+      },
+      {
+        "id": "cmof1yfwm000o04kvhxlj94b6",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "user",
+        "content": "I walk daily can you add that to the map",
+        "createdAt": "2026-04-26T00:51:05.350Z"
+      },
+      {
+        "id": "cmof1yi5o000p04kvzjydehsg",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "assistant",
+        "content": "Daily walking sounds like a real practice, not a passing intention. Since you want it on the map, I’d add it under Health as a stable habit; what does that walk do for you when you keep it?",
+        "createdAt": "2026-04-26T00:51:08.268Z"
+      },
+      {
+        "id": "cmof1yrpy000q04kvkaccs45c",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "user",
+        "content": "Yes please add it",
+        "createdAt": "2026-04-26T00:51:20.662Z"
+      },
+      {
+        "id": "cmof1yttz000r04kvqww7izmg",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "assistant",
+        "content": "I’ll treat daily walking as a stable health habit and add it to the map. When you think about that walk, is it mainly for your body, your mind, or the structure it gives your day?",
+        "createdAt": "2026-04-26T00:51:23.399Z"
+      },
+      {
+        "id": "cmof1z7vo000s04kvqcuu0m0m",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "user",
+        "content": "I walk for health and for my body. It's critical",
+        "createdAt": "2026-04-26T00:51:41.604Z"
+      },
+      {
+        "id": "cmof1zbuu000t04kvmapp4xmp",
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "role": "assistant",
+        "content": "This sounds less like a preference and more like a non-negotiable part of how you take care of yourself. That makes Daily Walking feel like a strong fit under Health; has it become critical because of something specific in your body, or because you’ve learned what happens when you stop?",
+        "createdAt": "2026-04-26T00:51:46.758Z"
+      }
+    ],
+    "graphNodes": [
+      {
+        "id": "cmobji2k70000mgrvf5g5nb7h",
+        "label": "user",
+        "type": "user",
+        "createdAt": "2026-04-23T13:51:09.943Z",
+        "updatedAt": "2026-04-23T13:51:44.870Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- Checks in on parents\n- Brother lives far away\n- Love-frustration with dad\n- Has a partner\n- Trying to get back into running",
+        "contextUpdatedAt": "2026-04-23T13:51:44.573Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobji3dx0008mgrvmc24fbg0",
+        "label": "dad",
+        "type": "person",
+        "createdAt": "2026-04-23T13:51:11.013Z",
+        "updatedAt": "2026-04-23T13:51:50.309Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- User's dad\n- User feels love and frustration\n- He's proud of user\n- Avoids hard conversations",
+        "contextUpdatedAt": "2026-04-23T13:51:50.092Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobji3k10009mgrvec68uep8",
+        "label": "relationships",
+        "type": "domain",
+        "createdAt": "2026-04-23T13:51:11.233Z",
+        "updatedAt": "2026-04-23T13:51:53.750Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- Has a partner\n- Future talks with partner\n- Feels love in those talks\n- Close friend having hard time\n- Trying to support friend",
+        "contextUpdatedAt": "2026-04-23T13:51:53.537Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobji427000cmgrvco4e87va",
+        "label": "family",
+        "type": "role",
+        "createdAt": "2026-04-23T13:51:11.887Z",
+        "updatedAt": "2026-04-23T22:23:28.192Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- Dad on user's mind\n- Mom stressed\n- User worried about both parents\n- Brother lives far away\n- User checks in with family",
+        "contextUpdatedAt": "2026-04-23T13:51:57.454Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobji4h7000emgrvwczyu1ul",
+        "label": "mom",
+        "type": "person",
+        "createdAt": "2026-04-23T13:51:12.427Z",
+        "updatedAt": "2026-04-23T13:52:01.163Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- User's mom\n- Stressed lately\n- User worried about her\n- User checks in on her",
+        "contextUpdatedAt": "2026-04-23T13:52:00.946Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobji4wc000gmgrvfojgxpgo",
+        "label": "brother",
+        "type": "person",
+        "createdAt": "2026-04-23T13:51:12.973Z",
+        "updatedAt": "2026-04-23T22:05:03.164Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- User's brother\n- Lives far away\n- does pottery",
+        "contextUpdatedAt": "2026-04-23T22:05:03.141Z",
+        "contextSource": "user_edit"
+      },
+      {
+        "id": "cmobji7kj000wmgrvjs2cr35o",
+        "label": "work",
+        "type": "domain",
+        "createdAt": "2026-04-23T13:51:16.435Z",
+        "updatedAt": "2026-04-23T13:52:08.068Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- Big project assigned without warning\n- Boss dropped project on user\n- Overwhelmed by current workload\n- Sarah helpful coworker\n- Thought about quitting this week",
+        "contextUpdatedAt": "2026-04-23T13:52:07.854Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobji7qt000xmgrvqit11zx4",
+        "label": "boss",
+        "type": "person",
+        "createdAt": "2026-04-23T13:51:16.661Z",
+        "updatedAt": "2026-04-23T13:52:10.891Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- User's boss assigned big project\n- No warning before assignment",
+        "contextUpdatedAt": "2026-04-23T13:52:10.674Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobji88n0010mgrvtn5h40xu",
+        "label": "coworker",
+        "type": "person",
+        "createdAt": "2026-04-23T13:51:17.303Z",
+        "updatedAt": "2026-04-23T13:52:14.673Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- Sarah: coworker\n- Helpful during big project\n- Also seems stressed",
+        "contextUpdatedAt": "2026-04-23T13:52:14.459Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobjiaeh001cmgrv6t144vjy",
+        "label": "partner",
+        "type": "person",
+        "createdAt": "2026-04-23T13:51:20.105Z",
+        "updatedAt": "2026-04-23T13:52:18.054Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- User has a partner\n- Had dinner together recently\n- Talked about their future\n- User feels love with partner",
+        "contextUpdatedAt": "2026-04-23T13:52:17.843Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobjiazs001emgrvfabmb1g6",
+        "label": "friend",
+        "type": "person",
+        "createdAt": "2026-04-23T13:51:20.872Z",
+        "updatedAt": "2026-04-26T00:25:10.712Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- close friend\n- going through hard time\n- user trying be there",
+        "contextUpdatedAt": "2026-04-26T00:25:10.687Z",
+        "contextSource": "user_edit"
+      },
+      {
+        "id": "cmobjicz4001omgrvoa1iuiju",
+        "label": "health",
+        "type": "domain",
+        "createdAt": "2026-04-23T13:51:23.440Z",
+        "updatedAt": "2026-04-23T13:52:26.967Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- Trying to get back into running\n- Health on mind lately\n- Wants better self-care\n- Feels proud after running\n- Often skips runs, feels frustrated",
+        "contextUpdatedAt": "2026-04-23T13:52:26.747Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobjid5c001pmgrvj0bwxf3i",
+        "label": "hobbies",
+        "type": "domain",
+        "createdAt": "2026-04-23T13:51:23.664Z",
+        "updatedAt": "2026-04-23T13:52:30.068Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": "- Running\n- Trying to get back into it\n- Health on mind\n- Feels proud after runs\n- Frustrated most days not running",
+        "contextUpdatedAt": "2026-04-23T13:52:29.862Z",
+        "contextSource": "generated"
+      },
+      {
+        "id": "cmobyg6o600000hrvbw0dfg9i",
+        "label": "self",
+        "type": "domain",
+        "createdAt": "2026-04-23T20:49:36.198Z",
+        "updatedAt": "2026-04-23T20:49:36.198Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": null,
+        "contextUpdatedAt": null,
+        "contextSource": null
+      },
+      {
+        "id": "cmobyg7xa00040hrvqprbmejd",
+        "label": "lifestyle",
+        "type": "domain",
+        "createdAt": "2026-04-23T20:49:37.822Z",
+        "updatedAt": "2026-04-23T20:49:37.822Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": null,
+        "contextUpdatedAt": null,
+        "contextSource": null
+      },
+      {
+        "id": "cmof1zcr0000v04kvjp7h4ddb",
+        "label": "routine",
+        "type": "role",
+        "createdAt": "2026-04-26T00:51:47.916Z",
+        "updatedAt": "2026-04-26T00:51:47.916Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": null,
+        "contextUpdatedAt": null,
+        "contextSource": null
+      },
+      {
+        "id": "cmof3gmj5000ad9rv5jyaprfy",
+        "label": "skateboarding",
+        "type": "role",
+        "createdAt": "2026-04-26T01:33:13.361Z",
+        "updatedAt": "2026-04-26T01:45:02.122Z",
+        "userId": null,
+        "mentionCount": 0,
+        "insightSummary": null,
+        "insightBullets": null,
+        "insightGeneratedAt": null,
+        "contextText": null,
+        "contextUpdatedAt": null,
+        "contextSource": null
+      }
+    ],
+    "graphEdges": [
+      {
+        "id": "cmoc1swir0000b7rv294qhtmz",
+        "fromId": "cmobji2k70000mgrvf5g5nb7h",
+        "toId": "cmobyg6o600000hrvbw0dfg9i",
+        "relationship": "has_domain",
+        "createdAt": "2026-04-23T22:23:28.419Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1swlv0001b7rv7bysjrzf",
+        "fromId": "cmobji2k70000mgrvf5g5nb7h",
+        "toId": "cmobjicz4001omgrvoa1iuiju",
+        "relationship": "has_domain",
+        "createdAt": "2026-04-23T22:23:28.531Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1swou0002b7rvj9udx4l7",
+        "fromId": "cmobji2k70000mgrvf5g5nb7h",
+        "toId": "cmobji7kj000wmgrvjs2cr35o",
+        "relationship": "has_domain",
+        "createdAt": "2026-04-23T22:23:28.638Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1swry0003b7rvdblpt3gu",
+        "fromId": "cmobji2k70000mgrvf5g5nb7h",
+        "toId": "cmobji3k10009mgrvec68uep8",
+        "relationship": "has_domain",
+        "createdAt": "2026-04-23T22:23:28.750Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1swvd0004b7rvvsuaolqk",
+        "fromId": "cmobji2k70000mgrvf5g5nb7h",
+        "toId": "cmobjid5c001pmgrvj0bwxf3i",
+        "relationship": "has_domain",
+        "createdAt": "2026-04-23T22:23:28.873Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1swyc0005b7rvwx7k5mvx",
+        "fromId": "cmobji2k70000mgrvf5g5nb7h",
+        "toId": "cmobyg7xa00040hrvqprbmejd",
+        "relationship": "has_domain",
+        "createdAt": "2026-04-23T22:23:28.980Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sx1k0006b7rvfzuabewh",
+        "fromId": "cmobji427000cmgrvco4e87va",
+        "toId": "cmobji3k10009mgrvec68uep8",
+        "relationship": "part_of",
+        "createdAt": "2026-04-23T22:23:29.096Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sx4h0007b7rvo37ttgvk",
+        "fromId": "cmobji3dx0008mgrvmc24fbg0",
+        "toId": "cmobji427000cmgrvco4e87va",
+        "relationship": "member_of",
+        "createdAt": "2026-04-23T22:23:29.201Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sx7n0008b7rvqlwa1w5w",
+        "fromId": "cmobji4h7000emgrvwczyu1ul",
+        "toId": "cmobji427000cmgrvco4e87va",
+        "relationship": "member_of",
+        "createdAt": "2026-04-23T22:23:29.315Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sxas0009b7rvxwkzy163",
+        "fromId": "cmobji4wc000gmgrvfojgxpgo",
+        "toId": "cmobji427000cmgrvco4e87va",
+        "relationship": "member_of",
+        "createdAt": "2026-04-23T22:23:29.428Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sxdo000ab7rv76lmv3kx",
+        "fromId": "cmobjiaeh001cmgrv6t144vjy",
+        "toId": "cmobji3k10009mgrvec68uep8",
+        "relationship": "part_of",
+        "createdAt": "2026-04-23T22:23:29.532Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sxgu000bb7rvbhq926o9",
+        "fromId": "cmobjiazs001emgrvfabmb1g6",
+        "toId": "cmobji3k10009mgrvec68uep8",
+        "relationship": "part_of",
+        "createdAt": "2026-04-23T22:23:29.646Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sxjz000cb7rvmhvx7pqc",
+        "fromId": "cmobji7qt000xmgrvqit11zx4",
+        "toId": "cmobji7kj000wmgrvjs2cr35o",
+        "relationship": "part_of",
+        "createdAt": "2026-04-23T22:23:29.759Z",
+        "userId": null
+      },
+      {
+        "id": "cmoc1sxn3000db7rvw74cpob5",
+        "fromId": "cmobji88n0010mgrvtn5h40xu",
+        "toId": "cmobji7kj000wmgrvjs2cr35o",
+        "relationship": "part_of",
+        "createdAt": "2026-04-23T22:23:29.871Z",
+        "userId": null
+      },
+      {
+        "id": "cmof1zcs7000w04kvlwy5hf9z",
+        "fromId": "cmof1zcr0000v04kvjp7h4ddb",
+        "toId": "cmobyg7xa00040hrvqprbmejd",
+        "relationship": "part_of",
+        "createdAt": "2026-04-26T00:51:47.959Z",
+        "userId": null
+      },
+      {
+        "id": "cmof3eqlz0005d9rvwxp6sfp3",
+        "fromId": "cmobji2k70000mgrvf5g5nb7h",
+        "toId": "cmobyg6o600000hrvbw0dfg9i",
+        "relationship": "has_context",
+        "createdAt": "2026-04-26T01:31:45.335Z",
+        "userId": null
+      },
+      {
+        "id": "cmof3gms0000bd9rv3ewy040s",
+        "fromId": "cmof3gmj5000ad9rv5jyaprfy",
+        "toId": "cmobjid5c001pmgrvj0bwxf3i",
+        "relationship": "part_of",
+        "createdAt": "2026-04-26T01:33:13.680Z",
+        "userId": null
+      }
+    ],
+    "messageNodes": [],
+    "conversationNodes": [
+      {
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "nodeId": "cmobji3dx0008mgrvmc24fbg0",
+        "createdAt": "2026-04-23T13:51:15.123Z"
+      },
+      {
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "nodeId": "cmobji427000cmgrvco4e87va",
+        "createdAt": "2026-04-23T13:51:15.123Z"
+      },
+      {
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "nodeId": "cmobji4h7000emgrvwczyu1ul",
+        "createdAt": "2026-04-23T13:51:15.123Z"
+      },
+      {
+        "conversationId": "cmobji2nc0001mgrvyoq4gwe1",
+        "nodeId": "cmobji4wc000gmgrvfojgxpgo",
+        "createdAt": "2026-04-23T13:51:15.123Z"
+      },
+      {
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "nodeId": "cmobji7kj000wmgrvjs2cr35o",
+        "createdAt": "2026-04-23T13:51:18.793Z"
+      },
+      {
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "nodeId": "cmobji7qt000xmgrvqit11zx4",
+        "createdAt": "2026-04-23T13:51:18.793Z"
+      },
+      {
+        "conversationId": "cmobji6tg000pmgrvmrjqwv0v",
+        "nodeId": "cmobji88n0010mgrvtn5h40xu",
+        "createdAt": "2026-04-23T13:51:18.793Z"
+      },
+      {
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "nodeId": "cmobjiaeh001cmgrv6t144vjy",
+        "createdAt": "2026-04-23T13:51:22.360Z"
+      },
+      {
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "nodeId": "cmobji3k10009mgrvec68uep8",
+        "createdAt": "2026-04-23T13:51:22.360Z"
+      },
+      {
+        "conversationId": "cmobji9my0015mgrvlva6gxvz",
+        "nodeId": "cmobjiazs001emgrvfabmb1g6",
+        "createdAt": "2026-04-23T13:51:22.360Z"
+      },
+      {
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "nodeId": "cmobjicz4001omgrvoa1iuiju",
+        "createdAt": "2026-04-23T13:51:24.401Z"
+      },
+      {
+        "conversationId": "cmobjicdw001jmgrvt7lud9zv",
+        "nodeId": "cmobjid5c001pmgrvj0bwxf3i",
+        "createdAt": "2026-04-23T13:51:24.401Z"
+      },
+      {
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "nodeId": "cmobjicz4001omgrvoa1iuiju",
+        "createdAt": "2026-04-26T00:51:48.035Z"
+      },
+      {
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "nodeId": "cmof1zcr0000v04kvjp7h4ddb",
+        "createdAt": "2026-04-26T00:51:48.035Z"
+      },
+      {
+        "conversationId": "cmof1m8d1000h04kvnx9i0c6g",
+        "nodeId": "cmobji427000cmgrvco4e87va",
+        "createdAt": "2026-04-26T00:51:48.035Z"
+      }
+    ],
+    "nodeContextVersions": [
+      {
+        "id": "cmobjitey0000p1rvjca4j5ta",
+        "nodeId": "cmobji2k70000mgrvf5g5nb7h",
+        "content": "- Checks in on parents\n- Brother lives far away\n- Love-frustration with dad\n- Has a partner\n- Trying to get back into running",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:51:44.746Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjixmc0001p1rvu1ik8m55",
+        "nodeId": "cmobji3dx0008mgrvmc24fbg0",
+        "content": "- User's dad\n- User feels love and frustration\n- He's proud of user\n- Avoids hard conversations",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:51:50.196Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjj0a00002p1rv1va88q78",
+        "nodeId": "cmobji3k10009mgrvec68uep8",
+        "content": "- Has a partner\n- Future talks with partner\n- Feels love in those talks\n- Close friend having hard time\n- Trying to support friend",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:51:53.640Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjj3au0003p1rvb4btme7e",
+        "nodeId": "cmobji427000cmgrvco4e87va",
+        "content": "- Dad on user's mind\n- Mom stressed\n- User worried about both parents\n- Brother lives far away\n- User checks in with family",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:51:57.558Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjj5zw0004p1rvnof82z29",
+        "nodeId": "cmobji4h7000emgrvwczyu1ul",
+        "content": "- User's mom\n- Stressed lately\n- User worried about her\n- User checks in on her",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:01.052Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjj8wf0005p1rvq6uc2otv",
+        "nodeId": "cmobji4wc000gmgrvfojgxpgo",
+        "content": "- Lives far away\n- User checks in on parents\n- User's brother",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:04.815Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjjbbt0006p1rvvd9gs2h0",
+        "nodeId": "cmobji7kj000wmgrvjs2cr35o",
+        "content": "- Big project assigned without warning\n- Boss dropped project on user\n- Overwhelmed by current workload\n- Sarah helpful coworker\n- Thought about quitting this week",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:07.961Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjjdi10007p1rvwf4oeiy9",
+        "nodeId": "cmobji7qt000xmgrvqit11zx4",
+        "content": "- User's boss assigned big project\n- No warning before assignment",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:10.777Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjjgf50008p1rvfti5qbfn",
+        "nodeId": "cmobji88n0010mgrvtn5h40xu",
+        "content": "- Sarah: coworker\n- Helpful during big project\n- Also seems stressed",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:14.561Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjjj150009p1rvrxb3xryt",
+        "nodeId": "cmobjiaeh001cmgrv6t144vjy",
+        "content": "- User has a partner\n- Had dinner together recently\n- Talked about their future\n- User feels love with partner",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:17.945Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjjlhf000ap1rvwbl6do4b",
+        "nodeId": "cmobjiazs001emgrvfabmb1g6",
+        "content": "- close friend\n- going through hard time\n- user trying be there",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:21.123Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjjpwn000bp1rvtpyij3fd",
+        "nodeId": "cmobjicz4001omgrvoa1iuiju",
+        "content": "- Trying to get back into running\n- Health on mind lately\n- Wants better self-care\n- Feels proud after running\n- Often skips runs, feels frustrated",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:26.855Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmobjjsay000cp1rvf7wjhpfy",
+        "nodeId": "cmobjid5c001pmgrvj0bwxf3i",
+        "content": "- Running\n- Trying to get back into it\n- Health on mind\n- Feels proud after runs\n- Frustrated most days not running",
+        "source": "generated",
+        "createdAt": "2026-04-23T13:52:29.962Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmoc14jb1000004jxe1yrehts",
+        "nodeId": "cmobji4wc000gmgrvfojgxpgo",
+        "content": "- User's brother\n- Lives far away",
+        "source": "generated",
+        "createdAt": "2026-04-23T22:04:31.550Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmoc157ow000104jxrxre6p3f",
+        "nodeId": "cmobji4wc000gmgrvfojgxpgo",
+        "content": "- User's brother\n- Lives far away\n- does pottery",
+        "source": "user_edit",
+        "createdAt": "2026-04-23T22:05:03.152Z",
+        "editedByUserId": null
+      },
+      {
+        "id": "cmof114bv000304kvz8fzqexl",
+        "nodeId": "cmobjiazs001emgrvfabmb1g6",
+        "content": "- close friend\n- going through hard time\n- user trying be there",
+        "source": "user_edit",
+        "createdAt": "2026-04-26T00:25:10.699Z",
+        "editedByUserId": null
+      }
+    ]
+  }
+}

@@ -10,6 +10,9 @@ import {
   PlusCircle,
   Maximize2,
   Minimize2,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { Message, Conversation } from '@/types'
 
@@ -18,10 +21,16 @@ interface ChatInterfaceProps {
   starterPrompt: string | null
   onCreateConversation: () => void
   onSendMessage: (content: string) => Promise<void>
+  onDeleteConversation: (id: string) => Promise<void> | void
   onUpdateTags: () => Promise<void>
   onRemoveTag: (nodeId: string) => Promise<void>
   isSending: boolean
   isUpdatingTags: boolean
+  assistantDraft?: {
+    content: string
+    status: 'reading_context' | 'context_nodes' | 'streaming'
+    nodeLabels: string[]
+  } | null
   layout?: 'main' | 'side'
   side?: 'left' | 'right'
 }
@@ -31,15 +40,19 @@ export default function ChatInterface({
   starterPrompt,
   onCreateConversation,
   onSendMessage,
+  onDeleteConversation,
   onUpdateTags,
   onRemoveTag,
   isSending,
   isUpdatingTags,
+  assistantDraft,
   layout = 'main',
   side = 'right',
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [connectedNodesOpen, setConnectedNodesOpen] = useState(false)
+  const [confirmDeleteConversation, setConfirmDeleteConversation] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -68,7 +81,25 @@ export default function ChatInterface({
 
   useEffect(() => {
     setInput('')
+    setConfirmDeleteConversation(false)
+    setConnectedNodesOpen(false)
   }, [conversation?.id, starterPrompt])
+
+  const handleDeleteConversation = async () => {
+    if (!conversation) return
+    if (!confirmDeleteConversation) {
+      setConfirmDeleteConversation(true)
+      setTimeout(() => setConfirmDeleteConversation(false), 3000)
+      return
+    }
+    try {
+      await onDeleteConversation(conversation.id)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setConfirmDeleteConversation(false)
+    }
+  }
 
   const handleSend = async () => {
     const trimmed = input.trim()
@@ -158,60 +189,126 @@ export default function ChatInterface({
       }}
     >
       <div
-        className={`flex flex-shrink-0 items-center justify-between ${layout === 'side' ? 'px-5 py-5' : 'px-8 py-6'}`}
+        className={`flex flex-shrink-0 flex-col gap-3 ${layout === 'side' ? 'px-5 py-5' : 'px-8 py-6'}`}
         style={{
           boxShadow: 'inset 0 -1px 0 rgba(53, 42, 27, 0.05)',
           background:
             'linear-gradient(180deg, color-mix(in srgb, var(--mirror-nav) 92%, transparent), var(--mirror-pane))',
         }}
       >
-        <div className="min-w-0 pr-3">
-          <div
-            className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em]"
-            style={{ color: 'var(--mirror-secondary)' }}
-          >
-            Active reflection
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 pr-3">
+            <div
+              className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em]"
+              style={{ color: 'var(--mirror-secondary)' }}
+            >
+              Active reflection
+            </div>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--mirror-text)' }}>
+              {headerTitle}
+            </h2>
+            <p className="mt-1 text-xs" style={{ color: 'var(--mirror-muted)' }}>
+              {isDraft ? 'Draft. Saved when you send.' : `${messages.length} ${messages.length === 1 ? 'message' : 'messages'}`}
+            </p>
           </div>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--mirror-text)' }}>
-            {headerTitle}
-          </h2>
-          <p className="mt-1 text-xs" style={{ color: 'var(--mirror-muted)' }}>
-            {isDraft ? 'Draft. Saved when you send.' : `${messages.length} ${messages.length === 1 ? 'message' : 'messages'}`}
-          </p>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          {layout === 'side' && (
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {layout === 'side' && (
+              <button
+                type="button"
+                onClick={() => setIsExpanded((expanded) => !expanded)}
+                className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors"
+                style={{
+                  background: 'var(--mirror-elevated)',
+                  color: 'var(--mirror-secondary)',
+                  boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
+                }}
+                aria-label={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
+                title={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
+              >
+                {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                {isExpanded ? 'Compact' : 'Expand'}
+              </button>
+            )}
+            {conversation && (
+              <button
+                type="button"
+                onClick={handleDeleteConversation}
+                className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors"
+                style={{
+                  background: confirmDeleteConversation
+                    ? 'color-mix(in srgb, #c2410c 14%, var(--mirror-elevated))'
+                    : 'var(--mirror-elevated)',
+                  color: confirmDeleteConversation ? '#c2410c' : 'var(--mirror-secondary)',
+                  boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
+                }}
+                aria-label={confirmDeleteConversation ? 'Confirm delete entry' : 'Delete entry'}
+                title={confirmDeleteConversation ? 'Click again to permanently delete this entry' : 'Delete entry'}
+              >
+                <Trash2 size={13} />
+                {confirmDeleteConversation ? 'Sure?' : 'Delete'}
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setIsExpanded((expanded) => !expanded)}
+              onClick={onCreateConversation}
               className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors"
               style={{
-                background: 'var(--mirror-elevated)',
-                color: 'var(--mirror-secondary)',
-                boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.05)',
+                background: 'color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-elevated))',
+                color: 'var(--mirror-accent-hover)',
+                boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 16%, transparent)',
               }}
-              aria-label={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
-              title={isExpanded ? 'Collapse active reflection' : 'Expand active reflection'}
+              aria-label="Start a new reflection"
             >
-              {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-              {isExpanded ? 'Compact' : 'Expand'}
+              <PlusCircle size={14} />
+              New
             </button>
-          )}
+          </div>
+        </div>
+
+        {conversation && (
           <button
             type="button"
-            onClick={onCreateConversation}
-            className="mirror-focus-ring flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors"
+            onClick={() => setConnectedNodesOpen((open) => !open)}
+            className="mirror-focus-ring flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition-colors"
             style={{
-              background: 'color-mix(in srgb, var(--mirror-accent) 8%, var(--mirror-elevated))',
-              color: 'var(--mirror-accent-hover)',
-              boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 16%, transparent)',
+              background: 'color-mix(in srgb, var(--mirror-surface) 72%, transparent)',
+              color: 'var(--mirror-secondary)',
+              boxShadow: 'inset 0 0 0 1px rgba(53, 42, 27, 0.04)',
             }}
-            aria-label="Start a new reflection"
+            aria-expanded={connectedNodesOpen}
           >
-            <PlusCircle size={14} />
-            New
+            <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]">
+              Connected nodes
+            </span>
+            <span className="flex items-center gap-1.5 text-[11px]">
+              {conversation.tags?.length ?? 0}
+              {connectedNodesOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            </span>
           </button>
-        </div>
+        )}
+        {conversation && connectedNodesOpen && (
+          <div className="flex flex-wrap gap-1.5">
+            {(conversation.tags ?? []).length > 0 ? (
+              conversation.tags!.map((tag) => (
+                <span
+                  key={tag.nodeId}
+                  className="rounded-full px-2.5 py-1 text-[11px] font-medium"
+                  style={{
+                    background: 'var(--mirror-accent-subtle)',
+                    color: 'var(--mirror-accent-hover)',
+                    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--mirror-accent) 14%, transparent)',
+                  }}
+                >
+                  {tag.label}
+                </span>
+              ))
+            ) : (
+              <span className="text-[11px]" style={{ color: 'var(--mirror-muted)' }}>
+                No nodes tagged yet. Use Update map after the entry has enough signal.
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div
@@ -227,11 +324,19 @@ export default function ChatInterface({
             <MessageBubble key={m.id} role={m.role} content={m.content} wide={isExpanded} />
           ))}
 
-          {isSending && (
+          {assistantDraft ? (
+            <MessageBubble
+              role="assistant"
+              content={assistantDraft.content}
+              isLoading={assistantDraft.status !== 'streaming'}
+              contextLabels={assistantDraft.nodeLabels}
+              wide={isExpanded}
+            />
+          ) : isSending && (
             <div className="flex items-center gap-2 pl-1">
               <Loader2 size={14} className="animate-spin" style={{ color: 'var(--mirror-accent)' }} />
               <span className="text-xs italic" style={{ color: 'var(--mirror-muted)' }}>
-                Mirror is reflecting…
+                Reading context...
               </span>
             </div>
           )}
@@ -337,10 +442,19 @@ interface MessageBubbleProps {
   role: Message['role']
   content: string
   isStarter?: boolean
+  isLoading?: boolean
+  contextLabels?: string[]
   wide?: boolean
 }
 
-function MessageBubble({ role, content, isStarter, wide = false }: MessageBubbleProps) {
+function MessageBubble({
+  role,
+  content,
+  isStarter,
+  isLoading = false,
+  contextLabels = [],
+  wide = false,
+}: MessageBubbleProps) {
   const isUser = role === 'user'
   const roleLabel = isStarter ? 'Starter' : isUser ? 'You' : 'Mirror'
 
@@ -377,13 +491,42 @@ function MessageBubble({ role, content, isStarter, wide = false }: MessageBubble
           {!isUser && <Sparkles size={10} />}
           <span>{roleLabel}</span>
         </div>
+        {contextLabels.length > 0 && (
+          <div className="mb-2 space-y-1.5">
+            <div className="text-[10px] font-medium uppercase tracking-[0.16em]" style={{ color: 'var(--mirror-muted)' }}>
+              Looking into context
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+            {contextLabels.slice(0, 5).map((label) => (
+              <span
+                key={label}
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                style={{
+                  background: 'var(--mirror-accent-subtle)',
+                  color: 'var(--mirror-accent)',
+                }}
+              >
+                {label}
+              </span>
+            ))}
+            </div>
+          </div>
+        )}
         <p
-          className="text-sm leading-relaxed whitespace-pre-wrap"
+          className={`text-sm leading-relaxed whitespace-pre-wrap ${isLoading ? 'italic' : ''}`}
           style={{
             fontFamily: isUser ? 'inherit' : 'Georgia, serif',
+            color: isLoading ? 'var(--mirror-muted)' : 'var(--mirror-text)',
           }}
         >
           {content}
+          {isLoading && (
+            <Loader2
+              size={12}
+              className="ml-2 inline animate-spin align-[-2px]"
+              style={{ color: 'var(--mirror-accent)' }}
+            />
+          )}
         </p>
       </div>
     </div>

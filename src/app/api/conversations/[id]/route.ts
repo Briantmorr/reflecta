@@ -51,15 +51,17 @@ export async function DELETE(_: Request, { params }: Params) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (AUTH_ENABLED) {
-      const owned = await prisma.conversation.findUnique({
-        where: { id: params.id },
-        select: { userId: true },
-      })
-      if (!owned) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-      if (owned.userId !== userId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
+    const existing = await prisma.conversation.findUnique({
+      where: { id: params.id },
+      select: { userId: true },
+    })
+
+    if (!existing) {
+      return new NextResponse(null, { status: 204 })
+    }
+
+    if (AUTH_ENABLED && existing.userId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     await prisma.conversation.delete({ where: { id: params.id } })
