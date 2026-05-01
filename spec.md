@@ -183,8 +183,9 @@ Near-term product refactor:
 - primary app datastore is Postgres
 - deployment target = Vercel project connected to Postgres via Marketplace integration
 - ORM remains Prisma
-- `DATABASE_URL` becomes the single primary database connection for local, preview, and production
-- Vercel/runtime should rely on `DATABASE_URL`, not bundled database files
+- `DATABASE_URL` remains the single primary database connection setting, but each environment must provide its own database URL
+- local development uses `.env.local` pointing at local Postgres
+- Vercel/runtime should rely on provider-injected `DATABASE_URL`, not bundled database files or local env copies
 
 Why:
 
@@ -260,6 +261,7 @@ Target deployment path:
 - create Postgres instance from Vercel Marketplace
 - connect DB to Vercel project so `DATABASE_URL` is injected automatically
 - run Prisma migrations against that database
+- keep local `.env.local` pointed at a separate development database
 - keep `postinstall: prisma generate`
 - app data, node context, and prompt versions persist through Postgres
 

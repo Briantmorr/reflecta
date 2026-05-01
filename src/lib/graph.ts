@@ -1,6 +1,8 @@
 import { prisma } from './db'
 import { LLMResult, NodeType } from '@/types'
 import { displayLabel, normalizeLabel } from './utils'
+import { isRejectableLabel } from './llm'
+import { addToDenylist, ensureDenylistLoaded } from './labelDenylist'
 
 type PrismaErrorLike = { code?: string }
 type GraphOwner = { userId?: string | null }
@@ -79,20 +81,39 @@ export async function applyConversationMap(
   conversationId: string,
   { userId }: GraphOwner = {}
 ): Promise<string[]> {
+  await ensureDenylistLoaded()
   const userNodeId = await ensureUserNode({ userId })
   const taggableEntities = dedupeEntities(
-    result.entities.filter((entity) => entity.type !== 'emotion' && entity.type !== 'user')
+    result.entities
+      .filter((entity) => entity.type !== 'emotion' && entity.type !== 'user')
+      // Fix A (defensive): never trust upstream sanitization alone. Re-apply the
+      // shape predicate here so this is a single source of truth for what enters
+      // the graph.
+      .filter((entity) => entity.type === 'domain' || !isRejectableLabel(normalizeLabel(entity.name), entity.type))
   )
 
   const nodeIdsByLabel = new Map<string, string>([['user', userNodeId]])
   const taggedNodeIds = new Set<string>()
+  const createdNodeIds = new Set<string>()
+
+  // Entities the LLM/heuristics already placed via the relationships array.
+  // For these, ensureSupportingStructure should still create parent containers
+  // (Family, Coworkers, etc.) but skip the entity's own placement edge so we
+  // don't end up with multiple parents.
+  const placementEdgeTypes = new Set(['part_of', 'member_of', 'has_domain'])
+  const placedByRelationships = new Set<string>()
+  for (const rel of result.relationships) {
+    if (placementEdgeTypes.has(rel.type)) placedByRelationships.add(normalizeLabel(rel.from))
+  }
 
   for (const entity of taggableEntities) {
-    const nodeId = await upsertNode(entity.name, entity.type, { userId })
+    const nodeId = await upsertNodeTracked(entity.name, entity.type, { userId }, createdNodeIds)
     nodeIdsByLabel.set(normalizeLabel(entity.name), nodeId)
     nodeIdsByLabel.set(normalizeLabel(canonicalGraphLabel(entity.name)), nodeId)
     taggedNodeIds.add(nodeId)
-    await ensureSupportingStructure(entity.name, entity.type, nodeId, userNodeId, nodeIdsByLabel, { userId })
+    const skipOwnPlacement = placedByRelationships.has(normalizeLabel(entity.name)) ||
+      placedByRelationships.has(normalizeLabel(canonicalGraphLabel(entity.name)))
+    await ensureSupportingStructure(entity.name, entity.type, nodeId, userNodeId, nodeIdsByLabel, { userId }, createdNodeIds, skipOwnPlacement)
   }
 
   await ensurePersonRoleContainers(taggableEntities, nodeIdsByLabel, { userId })
@@ -103,8 +124,8 @@ export async function applyConversationMap(
   }
 
   for (const relationship of result.relationships) {
-    const fromId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.from, { userId })
-    const toId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.to, { userId })
+    const fromId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.from, { userId }, createdNodeIds)
+    const toId = await getOrCreateRelationshipNode(nodeIdsByLabel, relationship.to, { userId }, createdNodeIds)
 
     if (!fromId || !toId || fromId === toId) continue
 
@@ -125,6 +146,29 @@ export async function applyConversationMap(
         await removeRelationship(fromId, parentDomainId, 'part_of', { userId })
       }
     }
+  }
+
+  // Fix C: orphan cleanup. Any node we just created that ended up with zero
+  // edges (no placement, no LLM relationship, no person-container) violates the
+  // "every node connects to You" invariant. Drop it and unhook the tag. Only
+  // delete nodes we created in this pass — never touch pre-existing graph data.
+  for (const nodeId of [...createdNodeIds]) {
+    if (nodeId === userNodeId) continue
+    const edgeCount = await prisma.graphEdge.count({
+      where: { ...ownerWhere(userId), OR: [{ fromId: nodeId }, { toId: nodeId }] },
+    })
+    if (edgeCount > 0) continue
+    const node = await prisma.graphNode.findUnique({ where: { id: nodeId }, select: { label: true, type: true } })
+    console.warn('[applyConversationMap] dropped orphan node:', node?.label, node?.type)
+    taggedNodeIds.delete(nodeId)
+    createdNodeIds.delete(nodeId)
+    await prisma.graphNode.delete({ where: { id: nodeId } }).catch(() => {})
+    if (node?.label) await addToDenylist(node.label, 'orphan-cleanup')
+  }
+
+  if (taggedNodeIds.size === 0) {
+    const fallback = await createFallbackConversationTag(conversationId, { userId })
+    taggedNodeIds.add(fallback)
   }
 
   await prisma.conversationNode.deleteMany({ where: { conversationId } })
@@ -264,7 +308,8 @@ export async function getFullGraph({ userId }: GraphOwner = {}) {
 async function getOrCreateRelationshipNode(
   nodeIdsByLabel: Map<string, string>,
   rawLabel: string,
-  { userId }: GraphOwner = {}
+  { userId }: GraphOwner = {},
+  createdNodeIds?: Set<string>
 ): Promise<string | null> {
   const normalized = normalizeLabel(rawLabel)
   if (normalized === 'user') return nodeIdsByLabel.get('user') ?? null
@@ -276,8 +321,29 @@ async function getOrCreateRelationshipNode(
   const inferredType = inferTypeForTarget(rawLabel)
   if (inferredType === 'emotion') return null
 
-  const nodeId = await upsertNode(rawLabel, inferredType, { userId })
+  // Fix B: relationship endpoints must pass the same shape predicate as entities.
+  // Prevents the LLM from sneaking junk labels in via relationship.from/to.
+  if (inferredType !== 'domain' && isRejectableLabel(normalized)) {
+    console.warn('[graph] rejected relationship endpoint label:', rawLabel)
+    return null
+  }
+
+  const nodeId = await upsertNodeTracked(rawLabel, inferredType, { userId }, createdNodeIds)
   nodeIdsByLabel.set(normalized, nodeId)
+  return nodeId
+}
+
+async function upsertNodeTracked(
+  rawLabel: string,
+  type: NodeType,
+  { userId }: GraphOwner,
+  createdNodeIds?: Set<string>
+): Promise<string> {
+  const canonicalLabel = canonicalGraphLabel(rawLabel)
+  const normalized = normalizeLabel(canonicalLabel)
+  const existing = await prisma.graphNode.findFirst({ where: { ...ownerWhere(userId), label: normalized } })
+  const nodeId = await upsertNode(rawLabel, type, { userId })
+  if (!existing && createdNodeIds) createdNodeIds.add(nodeId)
   return nodeId
 }
 
@@ -364,7 +430,9 @@ async function ensureSupportingStructure(
   nodeId: string,
   userNodeId: string,
   nodeIdsByLabel: Map<string, string>,
-  { userId }: GraphOwner = {}
+  { userId }: GraphOwner = {},
+  createdNodeIds?: Set<string>,
+  skipOwnPlacement = false
 ) {
   const canonicalLabel = canonicalGraphLabel(label)
   const normalized = normalizeLabel(canonicalLabel)
@@ -373,23 +441,23 @@ async function ensureSupportingStructure(
   const domainLabel = inferTierOneDomain(canonicalLabel, type)
   if (!domainLabel) return
 
-  const domainId = await getOrCreateNamedNode(domainLabel, 'domain', nodeIdsByLabel, { userId })
+  const domainId = await getOrCreateNamedNode(domainLabel, 'domain', nodeIdsByLabel, { userId }, createdNodeIds)
   await upsertRelationship(userNodeId, domainId, 'has_domain', { userId })
 
   if (type === 'role') {
-    await upsertRelationship(nodeId, domainId, 'part_of', { userId })
+    if (!skipOwnPlacement) await upsertRelationship(nodeId, domainId, 'part_of', { userId })
     return
   }
 
   const roleLabel = inferRoleContainer(canonicalLabel)
   if (roleLabel) {
-    const roleId = await getOrCreateNamedNode(roleLabel, 'role', nodeIdsByLabel, { userId })
+    const roleId = await getOrCreateNamedNode(roleLabel, 'role', nodeIdsByLabel, { userId }, createdNodeIds)
     await upsertRelationship(roleId, domainId, 'part_of', { userId })
-    await upsertRelationship(nodeId, roleId, 'member_of', { userId })
+    if (!skipOwnPlacement) await upsertRelationship(nodeId, roleId, 'member_of', { userId })
     return
   }
 
-  await upsertRelationship(nodeId, domainId, 'part_of', { userId })
+  if (!skipOwnPlacement) await upsertRelationship(nodeId, domainId, 'part_of', { userId })
 }
 
 async function ensurePersonRoleContainers(
@@ -410,10 +478,14 @@ async function ensurePersonRoleContainers(
     const personId = nodeIdsByLabel.get(normalized)
     if (!personId) continue
 
-    if (roleLabels.has('coworkers')) {
-      const coworkersId = nodeIdsByLabel.get('coworkers')
-      if (coworkersId) {
-        await upsertRelationship(personId, coworkersId, 'member_of')
+    // Coworkers and Team are interchangeable as the work-people container.
+    // The LLM picks whichever; named persons mentioned alongside either
+    // should route under Work, not the Relationships default.
+    const containerLabel = roleLabels.has('coworkers') ? 'coworkers' : roleLabels.has('team') ? 'team' : null
+    if (containerLabel) {
+      const containerId = nodeIdsByLabel.get(containerLabel)
+      if (containerId) {
+        await upsertRelationship(personId, containerId, 'member_of')
         await removeRelationship(personId, nodeIdsByLabel.get('relationships'), 'part_of', { userId })
         continue
       }
@@ -428,13 +500,14 @@ async function getOrCreateNamedNode(
   label: string,
   type: NodeType,
   nodeIdsByLabel: Map<string, string>,
-  { userId }: GraphOwner = {}
+  { userId }: GraphOwner = {},
+  createdNodeIds?: Set<string>
 ) {
   const normalized = normalizeLabel(label)
   const existing = nodeIdsByLabel.get(normalized)
   if (existing) return existing
 
-  const nodeId = await upsertNode(label, type, { userId })
+  const nodeId = await upsertNodeTracked(label, type, { userId }, createdNodeIds)
   nodeIdsByLabel.set(normalized, nodeId)
   return nodeId
 }
@@ -591,6 +664,18 @@ function inferTierOneDomain(label: string, type: NodeType): (typeof CORE_TIER_ON
     if (normalized.includes('client')) return 'Work'
     if (normalized.includes('parent')) return 'Relationships'
     if (normalized.includes('sibling')) return 'Relationships'
+
+    // Activity gerunds (in the allow-list) default by flavor:
+    if (/^[a-z]+ing$/.test(normalized)) {
+      if (['engineering', 'consulting', 'teaching', 'training', 'mentoring'].includes(normalized)) return 'Work'
+      if (['journaling', 'meditating', 'praying', 'learning'].includes(normalized)) return 'Self'
+      return 'Hobbies'
+    }
+
+    // Unknown role with no other signal — default to Work. The LLM emits
+    // company names, projects, and team labels as type:"role", so Work is the
+    // safest fallback. Better an imperfect placement than a dropped node.
+    return 'Work'
   }
 
   return null

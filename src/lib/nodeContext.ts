@@ -61,11 +61,31 @@ export async function populateNodeContextForNode({
   })
 
   const updatedAt = new Date()
+  const trimmed = result.context.trim()
+  const hasContent = trimmed.length > 0
+
+  if (!hasContent) {
+    // Nothing durable to record. Clear any prior boilerplate; do not create a
+    // version row (versions track real edits, not "we tried and got nothing").
+    const updated = await prisma.graphNode.update({
+      where: { id: node.id },
+      data: { contextText: null, contextUpdatedAt: null, contextSource: null },
+    })
+    return {
+      nodeId: updated.id,
+      label: updated.label,
+      type: updated.type as NodeType,
+      context: '',
+      updatedAt: updatedAt.toISOString(),
+      conversationCount: conversations.length,
+    }
+  }
+
   const [, updated] = await prisma.$transaction([
     prisma.nodeContextVersion.create({
       data: {
         nodeId: node.id,
-        content: result.context,
+        content: trimmed,
         source: 'generated',
         editedByUserId: userId ?? null,
       },
@@ -73,7 +93,7 @@ export async function populateNodeContextForNode({
     prisma.graphNode.update({
       where: { id: node.id },
       data: {
-        contextText: result.context,
+        contextText: trimmed,
         contextUpdatedAt: updatedAt,
         contextSource: 'generated',
       },
@@ -84,7 +104,7 @@ export async function populateNodeContextForNode({
     nodeId: updated.id,
     label: updated.label,
     type: updated.type as NodeType,
-    context: updated.contextText ?? result.context,
+    context: updated.contextText ?? trimmed,
     updatedAt: updatedAt.toISOString(),
     conversationCount: conversations.length,
   }

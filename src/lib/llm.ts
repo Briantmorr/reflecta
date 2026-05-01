@@ -3,6 +3,7 @@ import { normalizeLabel } from '@/lib/utils'
 import { mockLLMCall } from '@/lib/mockLLM'
 import { PromptKey, resolvePrompt } from '@/lib/promptStore'
 import { RelevantNodeContext } from '@/lib/relevantNodeContext'
+import { ensureDenylistLoaded, isLabelDenied } from '@/lib/labelDenylist'
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/responses'
 const OPENAI_MODEL = 'gpt-5.4'
@@ -63,7 +64,13 @@ Write like smart caveman:
 
 Keep only highest-value facts. Use user's own names and labels.
 
-Do NOT include patterns, tensions, insights, advice, encouragement, therapy language, unsupported inference, duplicated facts, or scene-setting detail. If signal thin, return 1 to 2 bullets only.`
+Do NOT include:
+- patterns, tensions, insights, advice, encouragement, therapy language
+- unsupported inference, duplicated facts, scene-setting detail
+- a heading or the node name as a title — the UI already shows the label
+- meta-commentary about how many conversations this node has, or how the picture is "still forming," or anything telling the reader to come back later
+
+If signal is thin, return 1 to 2 bullets only. If there are zero durable facts, return an empty string for context. Do NOT pad with placeholder lines.`
 
 const RESULT_SCHEMA = {
   type: 'object',
@@ -88,6 +95,7 @@ const RESULT_SCHEMA = {
     },
     relationships: {
       type: 'array',
+      minItems: 1,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -156,7 +164,13 @@ Response: "Work isn't staying in its lane — it sounds like it's reshaping the 
 
 const DEFAULT_TAGGER_PROMPT = `You are tagging one completed conversation to update a user's life map. The map is a lean hierarchy of people, roles, groups, and domains that genuinely shape this person's life. Capture what is load-bearing, not what was mentioned in passing.
 
-Return 1 to 6 entities, never zero, plus only the placement relationships that attach each entity to its single best direct parent.
+Return 1 to 6 entities, never zero, plus the placement relationships that attach each entity to its single best direct parent.
+
+CRITICAL: every non-user entity you return MUST appear as the "from" field of at least one placement relationship. A returned entity with no placement edge is a bug — never emit one. The "relationships" array is never empty when "entities" is non-empty. If you cannot place an entity under a tier-one domain or an existing intermediate node, do not return that entity at all.
+
+Example of a complete output:
+- entities: [{name: "Sarah", type: "person"}, {name: "Coworkers", type: "role"}, {name: "Skateboarding", type: "role"}]
+- relationships: [{from: "Coworkers", to: "Work", type: "part_of"}, {from: "Sarah", to: "Coworkers", type: "member_of"}, {from: "Skateboarding", to: "Hobbies", type: "part_of"}]
 
 The only tier-one domains are Self, Health, Work, Relationships, Hobbies, Lifestyle. These anchor the map. Everything non-domain must have exactly one direct parent: either one tier-one domain or one intermediate role/group node. Do not invent new tier-one domains.
 
@@ -195,6 +209,7 @@ Structural rules:
 - Do not return semantic/person edges like child_of, friend_of, partner_of, reports_to, works_with, or feels.
 - If a named person belongs to a group, include the group container (Family, Coworkers, Clients, Friends, Neighbors, Congregation).
 - Parent vs. self-as-parent: "my dad" -> Dad (person, under Relationships). "becoming a dad" / "new dad" -> Fatherhood (role, under Self). Same pattern for Mom / Motherhood. Never conflate.
+- Self-as-child references like "I'm a son" or "being a great son" describe the user's existing identity and are NOT nodes. Do NOT return Son or Daughter as role nodes. Only tag Son or Daughter as a person node when the user is talking about their own child by that label.
 - Prefer actual names over generic labels when a name is known; keep the group container when it helps place the person.
 - A hobby, craft, sport, art form, practice, or area of study is a role node under its natural domain (Hobbies for recreation, Work for career activities, Self for internal practices like prayer or journaling).
 - The user entity is always labeled "User".
@@ -586,9 +601,7 @@ export async function generateNodeContext({
   })
 
   if (!transcripts.trim() && !existingContext?.trim()) {
-    return {
-      context: `**${node.label}**\n\nNothing captured yet. Come back after a few conversations touch this node.`,
-    }
+    return { context: '' }
   }
 
   const existingBlock = existingContext?.trim()
@@ -651,27 +664,34 @@ export async function generateNodeContext({
 }
 
 function sanitizeNodeContext(result: NodeContextResult, node: NodeInsightNodeRef): NodeContextResult {
-  const context =
-    typeof result.context === 'string' && result.context.trim().length > 0
-      ? result.context.trim()
-      : `**${node.label}**\n\nNothing captured yet.`
-  return { context }
+  if (typeof result.context !== 'string') return { context: '' }
+  return { context: stripContextHeading(result.context, node.label) }
+}
+
+function stripContextHeading(raw: string, label: string): string {
+  const lines = raw.split('\n').map((line) => line.replace(/^\s+|\s+$/g, ''))
+  const labelNorm = label.trim().toLowerCase()
+  // Drop a leading bolded-label heading line and any blank lines under it.
+  while (lines.length > 0) {
+    const first = lines[0].toLowerCase()
+    const stripped = first.replace(/[*_#·\-\s]/g, '')
+    if (stripped === '' || stripped === labelNorm) {
+      lines.shift()
+    } else {
+      break
+    }
+  }
+  return lines.join('\n').trim()
 }
 
 function buildMockNodeContext(
-  node: NodeInsightNodeRef,
+  _node: NodeInsightNodeRef,
   existingContext: string | null,
-  conversations: NodeInsightConversation[]
+  _conversations: NodeInsightConversation[]
 ): NodeContextResult {
-  if (existingContext?.trim()) {
-    return { context: existingContext.trim() }
-  }
-  if (conversations.length === 0) {
-    return { context: `**${node.label}**\n\nNothing captured yet.` }
-  }
-  return {
-    context: `**${node.label}**\n\n- Referenced across ${conversations.length} conversation${conversations.length === 1 ? '' : 's'}.\n- Details will fill in as the user talks more about this.`,
-  }
+  // Don't fabricate placeholder content. If there's no API key and no prior
+  // memory, leave it empty — the UI will show "No memory written yet."
+  return { context: existingContext?.trim() ?? '' }
 }
 
 function buildNodeInsightTranscripts(
@@ -766,6 +786,7 @@ async function generateConversationTagsFromTranscript({
   transcript: string
   graph: Graph
 }): Promise<LLMResult> {
+  await ensureDenylistLoaded()
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     return sanitizeTagResult(mockLLMCall(transcript), transcript)
@@ -1067,14 +1088,14 @@ function sanitizeTagResult(result: LLMResult, transcript = ''): LLMResult {
     .filter((entity) => normalizeLabel(entity.name) !== 'hobbies' || hasExplicitHobby)
     .filter((entity) => isSupportedByUserTranscript(entity, userTranscript))
     .slice(0, 6)
-  const relationships = inferTagRelationships(enrichedEntities, transcript)
-    .filter((relationship, index, list) => {
-      const key = `${normalizeLabel(relationship.from)}:${relationship.type}:${normalizeLabel(relationship.to)}`
-      return list.findIndex((candidate) => {
-        return `${normalizeLabel(candidate.from)}:${candidate.type}:${normalizeLabel(candidate.to)}` === key
-      }) === index
-    })
-    .slice(0, 10)
+  // Merge LLM-supplied placements with heuristic placements. The LLM has
+  // semantic context the heuristics can't see (e.g., which person belongs to
+  // which group); the heuristics have structural guarantees the LLM forgets
+  // (e.g., always linking Family to Relationships). We trust LLM placements
+  // when they reference known entities and use placement-only edge types.
+  const heuristicRelationships = inferTagRelationships(enrichedEntities, transcript)
+  const llmRelationships = validateLLMRelationships(sanitized.relationships, enrichedEntities)
+  const relationships = unifyPlacement([...llmRelationships, ...heuristicRelationships], enrichedEntities).slice(0, 12)
 
   if (enrichedEntities.length > 0) {
     return { response: sanitized.response, entities: enrichedEntities, relationships }
@@ -1108,8 +1129,25 @@ function enrichTagEntities(
   }
 
   const normalizedTranscript = normalizeLabel(transcript)
+
+  // Always run: named family roles + partner. The LLM tends to over-aggregate
+  // ("my dad" -> Family) and we want the specific person node to survive.
+  const alwaysHeuristics: Array<{ regex: RegExp; entity: { name: string; type: NodeType } }> = [
+    { regex: /\b(new dad|becoming (a )?(dad|father)|going to be (a )?(dad|father)|fatherhood|parenthood)\b/i, entity: { name: 'Fatherhood', type: 'role' } },
+    { regex: /\bdad|father\b/i, entity: { name: isUserBecomingParent(transcript) ? 'Fatherhood' : 'Dad', type: isUserBecomingParent(transcript) ? 'role' : 'person' } },
+    { regex: /\bmom|mother\b/i, entity: { name: 'Mom', type: 'person' } },
+    { regex: /\bbrother\b/i, entity: { name: 'Brother', type: 'person' } },
+    { regex: /\bsister\b/i, entity: { name: 'Sister', type: 'person' } },
+    { regex: /\bpartner|wife|husband|boyfriend|girlfriend\b/i, entity: { name: 'Partner', type: 'person' } },
+  ]
+  for (const { regex, entity } of alwaysHeuristics) {
+    if (regex.test(transcript) || regex.test(normalizedTranscript)) {
+      add(entity)
+    }
+  }
+
   if (nonDomainCount < 2) {
-    const heuristics: Array<{ regex: RegExp; entity: { name: string; type: NodeType } }> = [
+    const sparseHeuristics: Array<{ regex: RegExp; entity: { name: string; type: NodeType } }> = [
       { regex: /\bsoftware engineer(ing)?\b/i, entity: { name: 'Software Engineering', type: 'role' } },
       { regex: /\barchitect(ure|ural)?\b/i, entity: { name: 'Architecture', type: 'role' } },
       { regex: /\b(ai|artificial intelligence|gpt|chatgpt)\b/i, entity: { name: 'AI', type: 'role' } },
@@ -1118,23 +1156,16 @@ function enrichTagEntities(
       { regex: /\bcommunity meetup(s)?|meetup(s)?\b/i, entity: { name: 'Community', type: 'role' } },
       { regex: /\bcoworker(s)?|colleague(s)?|teammate(s)?\b/i, entity: { name: 'Coworkers', type: 'role' } },
       { regex: /\bclient(s)?|customer(s)?\b/i, entity: { name: 'Clients', type: 'role' } },
-      { regex: /\b(new dad|becoming (a )?(dad|father)|going to be (a )?(dad|father)|fatherhood|parenthood)\b/i, entity: { name: 'Fatherhood', type: 'role' } },
       { regex: /\bfamily\b/i, entity: { name: 'Family', type: 'role' } },
-      { regex: /\bdad|father\b/i, entity: { name: isUserBecomingParent(transcript) ? 'Fatherhood' : 'Dad', type: isUserBecomingParent(transcript) ? 'role' : 'person' } },
-      { regex: /\bmom|mother\b/i, entity: { name: 'Mom', type: 'person' } },
-      { regex: /\bbrother\b/i, entity: { name: 'Brother', type: 'person' } },
-      { regex: /\bsister\b/i, entity: { name: 'Sister', type: 'person' } },
-      { regex: /\bpartner|wife|husband|boyfriend|girlfriend\b/i, entity: { name: 'Partner', type: 'person' } },
       { regex: /\bfriend(s)?\b/i, entity: { name: 'Friends', type: 'role' } },
       { regex: /\brunning|runner\b/i, entity: { name: 'Running', type: 'role' } },
       { regex: /\bwriting|writer\b/i, entity: { name: 'Writing', type: 'role' } },
       { regex: /\breading|reader\b/i, entity: { name: 'Reading', type: 'role' } },
       { regex: /\bmusic\b/i, entity: { name: 'Music', type: 'role' } },
       { regex: /\bhome|house|apartment\b/i, entity: { name: 'Home', type: 'role' } },
-      { regex: /\broutine(s)?|habit(s)?\b/i, entity: { name: 'Routine', type: 'role' } },
     ]
 
-    for (const { regex, entity } of heuristics) {
+    for (const { regex, entity } of sparseHeuristics) {
       if (regex.test(transcript) || regex.test(normalizedTranscript)) {
         add(entity)
       }
@@ -1387,10 +1418,119 @@ function addActivityCandidate(names: Set<string>, rawName: string | undefined) {
   names.add(displayName(normalized))
 }
 
+const PLACEMENT_EDGE_TYPES = new Set(['has_domain', 'part_of', 'member_of'])
+const TIER_ONE_DOMAIN_LABELS = new Set([
+  'self',
+  'health',
+  'work',
+  'relationships',
+  'hobbies',
+  'lifestyle',
+])
+
+function validateLLMRelationships(
+  raw: LLMResult['relationships'] | undefined,
+  entities: Array<{ name: string; type: NodeType }>
+): LLMResult['relationships'] {
+  if (!raw || raw.length === 0) return []
+  const knownLabels = new Set<string>()
+  knownLabels.add('user')
+  for (const e of entities) knownLabels.add(normalizeLabel(e.name))
+  for (const d of TIER_ONE_DOMAIN_LABELS) knownLabels.add(d)
+
+  return raw.filter((rel) => {
+    const type = normalizeRelationshipType(rel.type)
+    if (!PLACEMENT_EDGE_TYPES.has(type)) return false
+    const from = normalizeLabel(rel.from)
+    const to = normalizeLabel(rel.to)
+    if (!from || !to || from === to) return false
+    if (!knownLabels.has(from) || !knownLabels.has(to)) return false
+    if (isRejectableLabel(from) || isRejectableLabel(to)) return false
+    return true
+  }).map((rel) => ({
+    from: rel.from,
+    to: rel.to,
+    type: normalizeRelationshipType(rel.type),
+  }))
+}
+
+function unifyPlacement(
+  relationships: LLMResult['relationships'],
+  entities: Array<{ name: string; type: NodeType }>
+): LLMResult['relationships'] {
+  // Step 1: dedupe by (from, type, to).
+  const seen = new Set<string>()
+  const deduped = relationships.filter((rel) => {
+    const key = `${normalizeLabel(rel.from)}:${rel.type}:${normalizeLabel(rel.to)}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  // Step 2: enforce single-parent. If an entity has multiple placement edges
+  // (part_of/member_of), prefer the one whose target is NOT a tier-one domain
+  // (i.e., the deeper container). E.g., for Dad keep Dad→Family, drop Dad→Relationships.
+  const entityTypes = new Map<string, NodeType>()
+  for (const e of entities) entityTypes.set(normalizeLabel(e.name), e.type)
+
+  const placementsByFrom = new Map<string, typeof deduped>()
+  const result: typeof deduped = []
+  for (const rel of deduped) {
+    if (rel.type === 'has_domain') {
+      result.push(rel)
+      continue
+    }
+    if (!PLACEMENT_EDGE_TYPES.has(rel.type)) {
+      result.push(rel)
+      continue
+    }
+    const from = normalizeLabel(rel.from)
+    if (!placementsByFrom.has(from)) placementsByFrom.set(from, [])
+    placementsByFrom.get(from)!.push(rel)
+  }
+
+  for (const [, edges] of placementsByFrom) {
+    if (edges.length === 1) {
+      result.push(edges[0])
+      continue
+    }
+    // Prefer member_of over part_of (deeper), and non-domain targets over domain.
+    const ranked = [...edges].sort((a, b) => {
+      const aDeep = !TIER_ONE_DOMAIN_LABELS.has(normalizeLabel(a.to)) ? 1 : 0
+      const bDeep = !TIER_ONE_DOMAIN_LABELS.has(normalizeLabel(b.to)) ? 1 : 0
+      if (aDeep !== bDeep) return bDeep - aDeep
+      const aMember = a.type === 'member_of' ? 1 : 0
+      const bMember = b.type === 'member_of' ? 1 : 0
+      return bMember - aMember
+    })
+    result.push(ranked[0])
+  }
+
+  return result
+}
+
 function shouldRejectTagEntity(entity: { name: string; type: NodeType }) {
   const normalized = normalizeLabel(entity.name)
   if (entity.type === 'domain') return !TAG_DOMAIN_LABELS.has(normalized)
-  return TAG_ENTITY_STOPWORDS.has(normalized) || MODIFIER_ONLY_NODE_LABELS.has(normalized)
+  return isRejectableLabel(normalized, entity.type)
+}
+
+export function isRejectableLabel(normalized: string, type?: NodeType): boolean {
+  if (!normalized) return true
+  if (normalized.length < 2) return true
+  const wordCount = normalized.split(' ').filter(Boolean).length
+  if (wordCount > 4) return true
+  if (TAG_ENTITY_STOPWORDS.has(normalized)) return true
+  if (MODIFIER_ONLY_NODE_LABELS.has(normalized)) return true
+  // Static + dynamic denylist (pronouns, common verb forms, prior deletions).
+  // Caller is responsible for keeping the dynamic cache fresh via
+  // ensureDenylistLoaded(). The check itself stays sync.
+  if (isLabelDenied(normalized)) return true
+  // Self-as-child references ("I'm a son") shouldn't become role nodes — they
+  // imply the user has a son. Only allow Son/Daughter as person-type tags
+  // (the user's actual child).
+  if (type === 'role' && (normalized === 'son' || normalized === 'daughter')) return true
+  return false
 }
 
 function normalizeRelationshipType(value: string): string {

@@ -201,6 +201,15 @@ model MessageNode {
   @@index([nodeId])
 }
 
+// Labels rejected as graph nodes (orphan cleanup, audit deletions, manual
+// removals). Used as a dynamic denylist by the tagger so the same junk doesn't
+// keep getting re-extracted. Label is stored in normalized form.
+model RejectedLabel {
+  label     String   @id
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
 // Join table: a conversation is tagged with the nodes that best describe it.
 // These tags drive the visible graph and can be manually removed by the user.
 model ConversationNode {

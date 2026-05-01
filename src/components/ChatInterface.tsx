@@ -31,6 +31,7 @@ interface ChatInterfaceProps {
     status: 'reading_context' | 'context_nodes' | 'streaming'
     nodeLabels: string[]
   } | null
+  initialInput?: string
   layout?: 'main' | 'side'
   side?: 'left' | 'right'
 }
@@ -46,6 +47,7 @@ export default function ChatInterface({
   isSending,
   isUpdatingTags,
   assistantDraft,
+  initialInput,
   layout = 'main',
   side = 'right',
 }: ChatInterfaceProps) {
@@ -84,6 +86,10 @@ export default function ChatInterface({
     setConfirmDeleteConversation(false)
     setConnectedNodesOpen(false)
   }, [conversation?.id, starterPrompt])
+
+  useEffect(() => {
+    if (initialInput) setInput(initialInput)
+  }, [initialInput])
 
   const handleDeleteConversation = async () => {
     if (!conversation) return

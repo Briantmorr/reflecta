@@ -9,6 +9,10 @@
  * ──────────────────────────────────────────────────────── */
 
 :root {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --mono: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+
   /* Surfaces — warm cream / parchment */
   --mirror-bg: #faf7f0;
   --mirror-nav: #f3eee2;
@@ -67,6 +71,31 @@
   --node-dormant-label-bg: rgba(247, 241, 228, 0.78);
 
   --overlay-bg: rgba(42, 37, 32, 0.35);
+}
+
+.notebook-root {
+  --ink: #1a140c;
+  --ink-2: #2a2318;
+  --ink-3: #6b5230;
+  --ink-4: #8c7549;
+  --paper: #fbf5e4;
+  --paper-2: #faf2dd;
+  --paper-3: #f2e1b0;
+  --rule: #d6c7a0;
+  --rule-soft: #e8dcb7;
+  --accent: #7a4a1e;
+  --accent-red: #a23b1e;
+  --accent-gold: #c4a76a;
+  --desk: #b4a684;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+
+@keyframes mirror-note-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 :root[data-theme='dark'] {

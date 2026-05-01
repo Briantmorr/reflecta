@@ -42,10 +42,18 @@ The graph stays intentionally lean:
 npm install
 cp .env.example .env.local
 cp .env.example .env
-# edit DATABASE_URL to point at Postgres
+# edit .env.local DATABASE_URL to point at local Postgres
 npm run db:push
 npm run dev
 ```
+
+Local development should use a separate local Postgres database, for example:
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/llm_journal?schema=public"
+```
+
+Do not point `.env` or `.env.local` at the shared Vercel production database. If you need to run a production-mode check locally, keep the copied production URL in ignored `.env.production` only.
 
 Useful database commands:
 
@@ -103,13 +111,13 @@ To replace the fixture with whatever is currently in your configured `DATABASE_U
 npm run db:snapshot:dev
 ```
 
-These commands operate on the database pointed to by `DATABASE_URL`, so confirm `.env` / `.env.local` before running them against Vercel or another shared database.
+These commands operate on the database pointed to by `DATABASE_URL`, so confirm `.env.local` before running them. Prisma CLI commands prefer `.env.local` when present; `.env.production` is reserved for local production-mode checks and should not be used for routine development.
 
 By default:
 
 - local auth is off
 - Postgres is used
-- local dev reads `DATABASE_URL`
+- local dev reads `DATABASE_URL` from `.env.local`
 - Vercel should inject `DATABASE_URL` from its connected Postgres provider
 - durable production target is Postgres via Prisma on Vercel
 - if `OPENAI_API_KEY` is missing, the app falls back to the mock LLM
@@ -215,6 +223,13 @@ Main vars:
 - `ENABLE_PROMPT_EDITOR`, `ENABLE_REMOTE_PROMPTS`, `PROMPT_EDITOR_SECRET`: optional dev prompt editor
 
 See [.env.example](/Users/brianmorris/dev/projects/llm_journal/.env.example).
+
+Environment split:
+
+- `.env.local`: local development secrets and local Postgres `DATABASE_URL`
+- `.env`: fallback local values for tools that do not load `.env.local`
+- `.env.production`: ignored local copy of the production Postgres URL for production-mode checks only
+- Vercel production: provider-injected `DATABASE_URL`; do not rely on committed env files
 
 ## Deployment Notes
 
