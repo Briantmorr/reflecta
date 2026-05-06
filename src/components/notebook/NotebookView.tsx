@@ -74,6 +74,8 @@ export function NotebookView() {
   const [isSending, setIsSending] = useState(false)
   const [isUpdatingMap, setIsUpdatingMap] = useState(false)
   const [isDeletingConversation, setIsDeletingConversation] = useState(false)
+  const [deletingNodeId, setDeletingNodeId] = useState<string | null>(null)
+  const [nodeDeleteError, setNodeDeleteError] = useState<string | null>(null)
   const [buildingMemoryNodeId, setBuildingMemoryNodeId] = useState<string | null>(null)
   const [savingMemoryNodeId, setSavingMemoryNodeId] = useState<string | null>(null)
   const [memoryError, setMemoryError] = useState<string | null>(null)
@@ -95,6 +97,10 @@ export function NotebookView() {
   useEffect(() => {
     graphViewportRef.current = graphViewport
   }, [graphViewport])
+
+  useEffect(() => {
+    setNodeDeleteError(null)
+  }, [selectedNodeId])
 
   const fetchConversations = useCallback(async () => {
     const res = await fetch('/api/conversations')
@@ -155,6 +161,12 @@ export function NotebookView() {
     const conversation = (await res.json()) as Conversation
     setAssistantDraft(null)
     setActiveConversation(conversation)
+    setActivePaper('note')
+  }, [])
+
+  const handleNewConversation = useCallback(() => {
+    setAssistantDraft(null)
+    setActiveConversation(null)
     setActivePaper('note')
   }, [])
 
@@ -257,6 +269,36 @@ export function NotebookView() {
       setIsDeletingConversation(false)
     }
   }, [activeConversation, fetchConversations, fetchGraph, isDeletingConversation, isSending, isUpdatingMap])
+
+  const handleDeleteNode = useCallback(async (nodeId: string) => {
+    if (deletingNodeId) return
+    const node = nodeById.get(nodeId)
+    if (!node || node.type === 'user' || node.type === 'domain') return
+
+    setDeletingNodeId(nodeId)
+    setNodeDeleteError(null)
+    try {
+      const res = await fetch(`/api/nodes/${nodeId}`, { method: 'DELETE' })
+      const data = (await res.json().catch(() => null)) as { error?: string } | null
+      if (!res.ok) throw new Error(data?.error ?? 'Failed to delete node')
+
+      setSelectedNodeId(null)
+      setActiveConversation((current) =>
+        current
+          ? {
+              ...current,
+              tags: (current.tags ?? []).filter((tag) => tag.nodeId !== nodeId),
+            }
+          : current
+      )
+      await Promise.all([fetchGraph(), fetchConversations()])
+    } catch (err) {
+      console.error(err)
+      setNodeDeleteError(err instanceof Error ? err.message : 'Failed to delete node')
+    } finally {
+      setDeletingNodeId(null)
+    }
+  }, [deletingNodeId, fetchConversations, fetchGraph, nodeById])
 
   const handleSendReflection = useCallback(
     async (content: string) => {
@@ -490,7 +532,7 @@ export function NotebookView() {
       className="notebook-root fixed inset-0 h-screen w-screen overflow-hidden"
       style={{
         background:
-          'linear-gradient(135deg, #c6b587 0%, #b4a684 48%, #9e8c60 100%)',
+          'linear-gradient(135deg, #cabd97 0%, #b8aa83 100%)',
       }}
     >
       <div className="flex h-screen w-screen items-center justify-center overflow-hidden">
@@ -501,7 +543,6 @@ export function NotebookView() {
             height: frameSize.height,
             border: 'none',
             boxShadow: 'none',
-            background: '#b4a684',
           }}
         >
           <div
@@ -525,14 +566,7 @@ export function NotebookView() {
             onPointerCancel={handleGraphPointerUp}
           >
             <PaperFilters />
-            <defs>
-              <linearGradient id="desk-n" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#c6b587" />
-                <stop offset="100%" stopColor="#9e8c60" />
-              </linearGradient>
-            </defs>
-            <rect width={W} height={H} fill="url(#desk-n)" />
-            <rect width={W} height={H} fill="white" filter="url(#pg-grain)" opacity="0.7" />
+            <rect width={W} height={H} fill="white" filter="url(#pg-grain)" opacity="0.35" />
 
             <PaperSheet x={PAGE_X} y={PAGE_Y} w={PAGE_W} h={PAGE_H} tint="#fbf3d9" side="br" earSize={74}>
               {[0.18, 0.5, 0.82].map((fraction) => (
@@ -644,6 +678,7 @@ export function NotebookView() {
             canDelete={!!activeConversation}
             topic={selectedNode?.type === 'user' ? null : selectedNode?.label ?? null}
             onSendMessage={handleSendReflection}
+            onNewConversation={handleNewConversation}
             onUpdateMap={handleUpdateMap}
             onDeleteConversation={handleDeleteConversation}
           />
@@ -662,17 +697,16 @@ export function NotebookView() {
             onSaveMemory={handleSaveMemory}
             onBuildInsights={handleBuildInsights}
             onSelectConversation={handleSelectConversation}
+            onDeleteNode={handleDeleteNode}
             isBuildingMemory={!!selectedNode && buildingMemoryNodeId === selectedNode.id}
             isSavingMemory={!!selectedNode && savingMemoryNodeId === selectedNode.id}
             memoryError={memoryError}
             isBuildingInsights={!!selectedNode && buildingInsightsNodeId === selectedNode.id}
+            isDeletingNode={!!selectedNode && deletingNodeId === selectedNode.id}
+            nodeDeleteError={nodeDeleteError}
             active={activePaper === 'slip'}
             zIndex={activePaper === 'slip' ? 32 : 18}
             onActivate={() => setActivePaper('slip')}
-            onClose={() => {
-              setSelectedNodeId(null)
-              setActivePaper('slip')
-            }}
           />
           </div>
         </div>

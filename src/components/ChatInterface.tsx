@@ -408,7 +408,7 @@ export default function ChatInterface({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Share what feels most alive right now."
+              placeholder="What's on your mind?"
               rows={1}
               disabled={isSending}
               className="flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none"

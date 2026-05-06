@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { AUTH_ENABLED, currentUserId } from '@/lib/auth'
+import { addToDenylist } from '@/lib/labelDenylist'
 import { displayLabel, normalizeLabel } from '@/lib/utils'
 
 type RouteContext = { params: { id: string } }
@@ -87,7 +88,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     if (!node) {
       return NextResponse.json({ error: 'Node not found' }, { status: 404 })
     }
-    if (PROTECTED_LABELS.has(node.label)) {
+    if (node.type === 'user' || node.type === 'domain' || PROTECTED_LABELS.has(node.label)) {
       return NextResponse.json({ error: 'This node cannot be deleted' }, { status: 400 })
     }
 
@@ -108,6 +109,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     }
 
     await prisma.graphNode.delete({ where: { id: node.id } })
+    await addToDenylist(node.label, 'manual-node-delete')
 
     return NextResponse.json({
       nodeId: node.id,

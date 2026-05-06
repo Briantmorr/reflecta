@@ -21,6 +21,7 @@ interface StickyNoteProps {
   canDelete?: boolean
   topic?: string | null
   onSendMessage: (content: string) => Promise<void> | void
+  onNewConversation: () => Promise<void> | void
   onUpdateMap: () => Promise<void> | void
   onDeleteConversation: () => Promise<void> | void
 }
@@ -38,11 +39,13 @@ export function StickyNote({
   canDelete = false,
   topic,
   onSendMessage,
+  onNewConversation,
   onUpdateMap,
   onDeleteConversation,
 }: StickyNoteProps) {
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const now = new Date()
 
   useEffect(() => {
@@ -56,7 +59,11 @@ export function StickyNote({
     const trimmed = text.trim()
     if (!trimmed || isSending) return
     setText('')
-    await onSendMessage(trimmed)
+    try {
+      await onSendMessage(trimmed)
+    } finally {
+      requestAnimationFrame(() => inputRef.current?.focus())
+    }
   }
 
   return (
@@ -105,8 +112,21 @@ export function StickyNote({
           borderBottom: '0.5px dashed rgba(122,74,30,0.35)',
         }}
       >
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '0.24em', color: '#7a4a1e', textTransform: 'uppercase' }}>
-          mirror · conversation
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '0.24em', color: '#7a4a1e', textTransform: 'uppercase' }}>
+            mirror · conversation
+          </div>
+          <button
+            type="button"
+            disabled={isSending || isDeleting || isUpdatingMap}
+            onClick={(event) => {
+              event.stopPropagation()
+              void onNewConversation()
+            }}
+            style={noteActionButtonStyle(isSending || isDeleting || isUpdatingMap)}
+          >
+            new
+          </button>
         </div>
         <div style={{ marginTop: 3, fontSize: 13, color: '#5a3a1e', fontStyle: 'italic' }}>
           {formatThreadDate(now)} · {timeOfDay(now)}
@@ -164,6 +184,7 @@ export function StickyNote({
           {isSending ? 'mirror · writing' : 'you · typing'}
         </div>
         <textarea
+          ref={inputRef}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
@@ -172,7 +193,7 @@ export function StickyNote({
               event.currentTarget.form?.requestSubmit()
             }
           }}
-          placeholder={messages.length === 0 ? "what's on your mind?" : 'write back...'}
+          placeholder={messages.length === 0 ? "What's on your mind?" : 'write back...'}
           rows={3}
           disabled={isSending}
           style={{

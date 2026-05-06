@@ -6,15 +6,17 @@ import { ConversationListItem, GraphNode } from '@/types'
 interface NotebookSlipProps {
   node: GraphNode | null
   conversations: ConversationListItem[]
-  onClose: () => void
   onBuildMemory: (nodeId: string) => Promise<void> | void
   onSaveMemory: (nodeId: string, context: string) => Promise<void> | void
   onBuildInsights: (nodeId: string) => Promise<void> | void
   onSelectConversation: (conversationId: string) => Promise<void> | void
+  onDeleteNode: (nodeId: string) => Promise<void> | void
   isBuildingMemory?: boolean
   isSavingMemory?: boolean
   memoryError?: string | null
   isBuildingInsights?: boolean
+  isDeletingNode?: boolean
+  nodeDeleteError?: string | null
   zIndex?: number
   active?: boolean
   onActivate?: () => void
@@ -23,21 +25,24 @@ interface NotebookSlipProps {
 export function NotebookSlip({
   node,
   conversations,
-  onClose,
   onBuildMemory,
   onSaveMemory,
   onBuildInsights,
   onSelectConversation,
+  onDeleteNode,
   isBuildingMemory = false,
   isSavingMemory = false,
   memoryError = null,
   isBuildingInsights = false,
+  isDeletingNode = false,
+  nodeDeleteError = null,
   zIndex = 20,
   active = true,
   onActivate,
 }: NotebookSlipProps) {
   const isEmpty = !node
   const isYou = node?.type === 'user'
+  const canDeleteNode = !!node && node.type !== 'user' && node.type !== 'domain'
   const matchingConversations = isYou
     ? conversations
     : node
@@ -50,11 +55,13 @@ export function NotebookSlip({
   const [entriesOpen, setEntriesOpen] = useState(false)
   const [editingMemory, setEditingMemory] = useState(false)
   const [memoryDraft, setMemoryDraft] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     setEntriesOpen(false)
     setEditingMemory(false)
     setMemoryDraft(node?.context?.text ?? '')
+    setConfirmDelete(false)
   }, [node?.id])
 
   useEffect(() => {
@@ -100,10 +107,47 @@ export function NotebookSlip({
         <div style={{ fontSize: 10, letterSpacing: '0.26em', textTransform: 'uppercase', color: '#6b5230', fontFamily: 'var(--mono)' }}>
           {isEmpty ? 'node memory' : isYou ? 'who you are' : `about · ${node.label.toLowerCase()}`}
         </div>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#8c7549', padding: 2, fontFamily: 'var(--mono)', fontSize: 14 }}>
-          x
-        </button>
+        {canDeleteNode && (
+          <button
+            type="button"
+            disabled={isDeletingNode}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (!node) return
+              if (!confirmDelete) {
+                setConfirmDelete(true)
+                return
+              }
+              void onDeleteNode(node.id)
+            }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: isDeletingNode ? 'default' : 'pointer',
+              color: confirmDelete ? '#a23b1e' : '#8c7549',
+              padding: 2,
+              fontFamily: 'var(--mono)',
+              fontSize: confirmDelete ? 9 : 14,
+              letterSpacing: confirmDelete ? '0.12em' : undefined,
+              textTransform: confirmDelete ? 'uppercase' : undefined,
+              opacity: isDeletingNode ? 0.55 : 1,
+            }}
+            title={confirmDelete ? 'Click again to permanently delete this node' : 'Delete node'}
+          >
+            {isDeletingNode ? '...' : confirmDelete ? 'sure?' : 'x'}
+          </button>
+        )}
       </div>
+      {confirmDelete && canDeleteNode && (
+        <p style={{ margin: '8px 0 0', color: '#a23b1e', fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '0.06em', lineHeight: 1.4 }}>
+          click sure again to permanently delete this node
+        </p>
+      )}
+      {nodeDeleteError && canDeleteNode && (
+        <p style={{ margin: '8px 0 0', color: '#a23b1e', fontFamily: 'var(--mono)', fontSize: 9, letterSpacing: '0.06em', lineHeight: 1.4 }}>
+          delete failed: {nodeDeleteError}
+        </p>
+      )}
       <h3 style={{ fontFamily: 'var(--serif)', fontSize: 34, fontWeight: 300, margin: '10px 0 0', lineHeight: 1.02, fontStyle: isYou ? 'normal' : 'italic', color: '#1a140c', letterSpacing: '-0.01em' }}>
         {isEmpty ? 'Select a node' : node.label}
       </h3>
