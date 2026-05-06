@@ -21,7 +21,9 @@
     "db:reset": "prisma db push --force-reset && tsx scripts/seed.ts",
     "db:reset-empty": "prisma db push --force-reset --accept-data-loss",
     "import:conversations": "tsx scripts/import.ts",
-    "prompts:seed": "tsx scripts/seed-prompts.ts"
+    "prompts:seed": "tsx scripts/seed-prompts.ts",
+    "test:integration": "tsx -r dotenv/config scripts/integration-tests.ts",
+    "test:tagger": "tsx -r dotenv/config scripts/test-tagger.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

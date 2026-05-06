@@ -63,3 +63,20 @@ export async function addToDenylist(rawLabel: string, reason: string): Promise<v
     console.warn('[labelDenylist] failed to record', normalized, err)
   }
 }
+
+export async function removeFromDenylist(rawLabel: string): Promise<void> {
+  const normalized = normalizeLabel(rawLabel)
+  if (!normalized) return
+  try {
+    await prisma.rejectedLabel.delete({ where: { label: normalized } }).catch(() => {})
+    dynamicCache.delete(normalized)
+  } catch (err) {
+    console.warn('[labelDenylist] failed to remove', normalized, err)
+  }
+}
+
+// Test-only: force a fresh load from the DB on next call. Production code
+// should not need this; the TTL handles steady-state.
+export function invalidateDenylistCache(): void {
+  dynamicLoadedAt = 0
+}

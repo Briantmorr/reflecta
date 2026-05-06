@@ -8,9 +8,12 @@ interface NotebookSlipProps {
   conversations: ConversationListItem[]
   onClose: () => void
   onBuildMemory: (nodeId: string) => Promise<void> | void
+  onSaveMemory: (nodeId: string, context: string) => Promise<void> | void
   onBuildInsights: (nodeId: string) => Promise<void> | void
   onSelectConversation: (conversationId: string) => Promise<void> | void
   isBuildingMemory?: boolean
+  isSavingMemory?: boolean
+  memoryError?: string | null
   isBuildingInsights?: boolean
   zIndex?: number
   active?: boolean
@@ -22,9 +25,12 @@ export function NotebookSlip({
   conversations,
   onClose,
   onBuildMemory,
+  onSaveMemory,
   onBuildInsights,
   onSelectConversation,
   isBuildingMemory = false,
+  isSavingMemory = false,
+  memoryError = null,
   isBuildingInsights = false,
   zIndex = 20,
   active = true,
@@ -42,10 +48,19 @@ export function NotebookSlip({
   const memoryLines = splitMemory(node?.context?.text)
   const pattern = node?.insights?.summary?.trim()
   const [entriesOpen, setEntriesOpen] = useState(false)
+  const [editingMemory, setEditingMemory] = useState(false)
+  const [memoryDraft, setMemoryDraft] = useState('')
 
   useEffect(() => {
     setEntriesOpen(false)
+    setEditingMemory(false)
+    setMemoryDraft(node?.context?.text ?? '')
   }, [node?.id])
+
+  useEffect(() => {
+    if (editingMemory) return
+    setMemoryDraft(node?.context?.text ?? '')
+  }, [editingMemory, node?.context?.text])
 
   return (
     <div
@@ -132,37 +147,135 @@ export function NotebookSlip({
       <div style={{ marginTop: 22 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <div style={sectionLabelStyle}>what I remember</div>
-          <button
-            type="button"
-            disabled={isEmpty || isBuildingMemory}
-            onClick={(event) => {
-              event.stopPropagation()
-              if (node) void onBuildMemory(node.id)
-            }}
-            style={smallActionButtonStyle(isEmpty, isBuildingMemory)}
-          >
-            {isBuildingMemory ? 'building...' : 'build memory'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {editingMemory ? (
+              <>
+                <button
+                  type="button"
+                  disabled={isSavingMemory}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (!node) return
+                    void Promise.resolve(onSaveMemory(node.id, normalizeMemoryDraft(memoryDraft))).then(() => setEditingMemory(false))
+                  }}
+                  style={smallActionButtonStyle(false, isSavingMemory)}
+                >
+                  {isSavingMemory ? 'saving...' : 'save'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingMemory}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setMemoryDraft(node?.context?.text ?? '')
+                    setEditingMemory(false)
+                  }}
+                  style={smallActionButtonStyle(false, isSavingMemory)}
+                >
+                  cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={isEmpty}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setMemoryDraft(node?.context?.text ?? '')
+                    setEditingMemory(true)
+                  }}
+                  style={smallActionButtonStyle(isEmpty, false)}
+                >
+                  edit
+                </button>
+                <button
+                  type="button"
+                  disabled={isEmpty || isBuildingMemory}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (node) void onBuildMemory(node.id)
+                  }}
+                  style={smallActionButtonStyle(isEmpty, isBuildingMemory)}
+                >
+                  {isBuildingMemory ? 'building...' : 'build memory'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
-        <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none' }}>
-          {(isEmpty ? ['Select a node to view its memory.'] : memoryLines.length > 0 ? memoryLines : ['No memory written yet.']).map((line, index, list) => (
-            <li
-              key={`${line}-${index}`}
-              style={{
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: 10,
-                padding: '6px 0',
-                borderBottom: index < list.length - 1 ? '0.5px dashed rgba(138,106,58,0.3)' : 'none',
-                fontSize: 14,
-                color: '#1a140c',
-              }}
-            >
-              <span style={{ color: '#a23b1e', fontFamily: 'var(--mono)', fontSize: 10 }}>·</span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ul>
+        {editingMemory ? (
+          <textarea
+            value={memoryDraft}
+            disabled={isSavingMemory}
+            onPointerDown={(event) => event.stopPropagation()}
+            onChange={(event) => setMemoryDraft(event.target.value)}
+            placeholder={'One memory per line...\nLives three hours away\nCalls every Sunday'}
+            rows={6}
+            style={{
+              width: '100%',
+              minHeight: 150,
+              marginTop: 8,
+              resize: 'vertical',
+              border: '0.5px dashed rgba(138,106,58,0.45)',
+              outline: 'none',
+              background: 'rgba(255,251,240,0.5)',
+              color: '#1a140c',
+              fontFamily: 'var(--serif)',
+              fontSize: 14,
+              lineHeight: 1.5,
+              padding: '8px 10px',
+              opacity: isSavingMemory ? 0.6 : 1,
+            }}
+          />
+        ) : (
+          <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none' }}>
+            {(isEmpty ? ['Select a node to view its memory.'] : memoryLines.length > 0 ? memoryLines : ['No memory written yet.']).map((line, index, list) => (
+              <li
+                key={`${line}-${index}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 10,
+                  padding: '6px 0',
+                  borderBottom: index < list.length - 1 ? '0.5px dashed rgba(138,106,58,0.3)' : 'none',
+                  fontSize: 14,
+                  color: '#1a140c',
+                }}
+              >
+                <span style={{ color: '#a23b1e', fontFamily: 'var(--mono)', fontSize: 10 }}>·</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {editingMemory && (
+          <p
+            style={{
+              margin: '6px 0 0',
+              color: '#8c7549',
+              fontFamily: 'var(--mono)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+            }}
+          >
+            one fact per line; blanks ignored
+          </p>
+        )}
+        {memoryError && !isEmpty && (
+          <p
+            style={{
+              margin: '8px 0 0',
+              color: '#a23b1e',
+              fontFamily: 'var(--mono)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              lineHeight: 1.4,
+            }}
+          >
+            memory failed: {memoryError}
+          </p>
+        )}
       </div>
 
       <div style={{ marginTop: 18 }}>
@@ -255,6 +368,14 @@ function splitMemory(text: string | undefined) {
     .map((line) => line.replace(/^[-*·]\s*/, '').trim())
     .filter(Boolean)
     .slice(0, 6)
+}
+
+function normalizeMemoryDraft(text: string) {
+  return text
+    .split(/\n+/)
+    .map((line) => line.replace(/^[-*·]\s*/, '').trim())
+    .filter(Boolean)
+    .join('\n')
 }
 
 function formatDate(value: string) {

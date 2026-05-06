@@ -75,6 +75,8 @@ export function NotebookView() {
   const [isUpdatingMap, setIsUpdatingMap] = useState(false)
   const [isDeletingConversation, setIsDeletingConversation] = useState(false)
   const [buildingMemoryNodeId, setBuildingMemoryNodeId] = useState<string | null>(null)
+  const [savingMemoryNodeId, setSavingMemoryNodeId] = useState<string | null>(null)
+  const [memoryError, setMemoryError] = useState<string | null>(null)
   const [buildingInsightsNodeId, setBuildingInsightsNodeId] = useState<string | null>(null)
   const [frameSize, setFrameSize] = useState({ width: W, height: H })
   const [scale, setScale] = useState(1)
@@ -130,10 +132,10 @@ export function NotebookView() {
 
   useEffect(() => {
     const updateScale = () => {
-      const width = window.innerWidth * 0.985
-      const height = window.innerHeight * 0.985
+      const width = window.innerWidth
+      const height = window.innerHeight
       setFrameSize({ width, height })
-      setScale(Math.max(width / W, height / H))
+      setScale(Math.min(width / W, height / H))
     }
     updateScale()
     window.addEventListener('resize', updateScale)
@@ -377,6 +379,7 @@ export function NotebookView() {
   const handleBuildMemory = async (nodeId: string) => {
     if (buildingMemoryNodeId) return
     setBuildingMemoryNodeId(nodeId)
+    setMemoryError(null)
     try {
       const res = await fetch(`/api/nodes/${nodeId}/context`, { method: 'POST' })
       const data = (await res.json().catch(() => null)) as { context?: string | null; updatedAt?: string | null; error?: string } | null
@@ -386,15 +389,57 @@ export function NotebookView() {
       setGraph((current) => ({
         ...current,
         nodes: current.nodes.map((node) =>
-          node.id === nodeId && data?.context && data.updatedAt
-            ? { ...node, context: { text: data.context, updatedAt: data.updatedAt } }
+          node.id === nodeId
+            ? {
+                ...node,
+                context: data?.context && data.updatedAt ? { text: data.context, updatedAt: data.updatedAt } : null,
+              }
             : node
         ),
       }))
     } catch (err) {
       console.error(err)
+      setMemoryError(err instanceof Error ? err.message : 'Failed to build memory')
     } finally {
       setBuildingMemoryNodeId(null)
+    }
+  }
+
+  const handleSaveMemory = async (nodeId: string, context: string) => {
+    if (savingMemoryNodeId) return
+    setSavingMemoryNodeId(nodeId)
+    setMemoryError(null)
+    try {
+      const res = await fetch(`/api/nodes/${nodeId}/context`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context }),
+      })
+      const data = (await res.json().catch(() => null)) as {
+        context?: string | null
+        updatedAt?: string | null
+        error?: string
+      } | null
+      if (!res.ok) {
+        throw new Error(data?.error ?? 'Failed to save memory')
+      }
+      setGraph((current) => ({
+        ...current,
+        nodes: current.nodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                context: data?.context && data.updatedAt ? { text: data.context, updatedAt: data.updatedAt } : null,
+              }
+            : node
+        ),
+      }))
+    } catch (err) {
+      console.error(err)
+      setMemoryError(err instanceof Error ? err.message : 'Failed to save memory')
+      throw err
+    } finally {
+      setSavingMemoryNodeId(null)
     }
   }
 
@@ -455,17 +500,17 @@ export function NotebookView() {
             width: frameSize.width,
             height: frameSize.height,
             border: 'none',
-            boxShadow: '0 18px 48px rgba(70,52,22,0.12)',
+            boxShadow: 'none',
             background: '#b4a684',
           }}
         >
           <div
-            className="absolute left-0 top-0"
+            className="absolute left-1/2 top-1/2"
             style={{
               width: W,
               height: H,
-              transform: `scale(${scale})`,
-              transformOrigin: 'left top',
+              transform: `translate(-50%, -50%) scale(${scale})`,
+              transformOrigin: 'center',
             }}
           >
           <svg
@@ -614,9 +659,12 @@ export function NotebookView() {
             node={selectedNode}
             conversations={conversations}
             onBuildMemory={handleBuildMemory}
+            onSaveMemory={handleSaveMemory}
             onBuildInsights={handleBuildInsights}
             onSelectConversation={handleSelectConversation}
             isBuildingMemory={!!selectedNode && buildingMemoryNodeId === selectedNode.id}
+            isSavingMemory={!!selectedNode && savingMemoryNodeId === selectedNode.id}
+            memoryError={memoryError}
             isBuildingInsights={!!selectedNode && buildingInsightsNodeId === selectedNode.id}
             active={activePaper === 'slip'}
             zIndex={activePaper === 'slip' ? 32 : 18}
